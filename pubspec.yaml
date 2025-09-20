@@ -1,0 +1,40 @@
+name: glitty
+description: "Car Wash Booking and Payment App"
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.6.2 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  http: ^0.13.6
+  flutter_bloc: ^8.1.6
+  flutter_map: ^4.0.0
+  latlong2: ^0.8.2
+  dio: ^5.4.3+1
+  file_picker: ^8.0.5
+  mime: ^1.0.5
+  flutter_stripe: ^10.2.0
+  shared_preferences: ^2.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  build_runner: ^2.4.6 # For code generation
+  mockito: ^5.4.2 # For testing
+  flutter_launcher_icons: ^0.13.1 # For app icons
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/
+    - assets/images/
+    - assets/icons/
+    - assets/animations/
+    - assets/translations/
