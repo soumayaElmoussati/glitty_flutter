@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:glitty/config/env.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'EnvoiDocumentsPage.dart';
 
@@ -13,62 +13,46 @@ class AddWasherPage extends StatefulWidget {
 class _AddWasherPageState extends State<AddWasherPage> {
   final _formKey = GlobalKey<FormState>();
   final Map<String, String> _formData = {
-    'nom': '',
-    'prenom': '',
+    'first_name': '',
+    'last_name': '',
     'email': '',
-    'telephone': '',
-    'adresse': '',
+    'phone': '',
+    'address': '',
+    'password': '',
   };
 
   String _responseMessage = '';
-
-  // URL dynamique selon la plateforme
-  String get baseUrl {
-    if (kIsWeb) {
-      return 'https://glitty.fr';
-    } else {
-      return 'http://10.0.2.2:3000';
-    }
-  }
 
   Future<void> _submitForm() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
 
-      try {
-        final response = await http.post(
-          Uri.parse('$baseUrl/api/washer/add'),
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode(_formData),
-        );
-
-        final result = json.decode(response.body);
-        if (response.statusCode == 200) {
-
-          final washerId = result['id'];
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => EnvoiDocumentsPage(washerId: washerId),
-            ),
-          );
-        } else {
-          setState(() {
-            _responseMessage = result['message'] ?? 'Erreur inconnue';
-          });
-        }
-      } catch (e) {
+      // Vérifier la longueur du mot de passe
+      if (_formData['password']!.length < 4) {
         setState(() {
-          _responseMessage = 'Erreur lors de l’envoi';
+          _responseMessage =
+              'Le mot de passe doit contenir au moins 4 caractères';
         });
+        return;
       }
+
+      // Passer directement à la page des documents avec les données
+      // On n'appelle plus l'API ici, on attend les documents
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => EnvoiDocumentsPage(
+            formData: _formData, // Passer toutes les données
+          ),
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     const darkBlue = Color(0xFF022519);
-    const fieldBg   = Color(0xFFF4F6F9);
+    const fieldBg = Color(0xFFF4F6F9);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -107,7 +91,7 @@ class _AddWasherPageState extends State<AddWasherPage> {
                         hint: 'Nom',
                         icon: Icons.person_outline,
                         validatorMsg: 'Nom requis',
-                        onSaved: (v) => _formData['nom'] = v!,
+                        onSaved: (v) => _formData['last_name'] = v!, // Corrigé
                         bg: fieldBg,
                       ),
                       const SizedBox(height: 16),
@@ -115,7 +99,7 @@ class _AddWasherPageState extends State<AddWasherPage> {
                         hint: 'Prénom',
                         icon: Icons.person_outline,
                         validatorMsg: 'Prénom requis',
-                        onSaved: (v) => _formData['prenom'] = v!,
+                        onSaved: (v) => _formData['first_name'] = v!, // Corrigé
                         bg: fieldBg,
                       ),
                       const SizedBox(height: 16),
@@ -123,10 +107,12 @@ class _AddWasherPageState extends State<AddWasherPage> {
                         hint: 'Email',
                         icon: Icons.email_outlined,
                         keyboard: TextInputType.emailAddress,
-                        validator: (v) =>
-                            v != null && v.contains('@') ? null : 'Email invalide',
+                        validator: (v) => v != null && v.contains('@')
+                            ? null
+                            : 'Email invalide',
                         onSaved: (v) => _formData['email'] = v!,
-                        bg: fieldBg, validatorMsg: '',
+                        bg: fieldBg,
+                        validatorMsg: '',
                       ),
                       const SizedBox(height: 16),
                       _inputField(
@@ -134,7 +120,7 @@ class _AddWasherPageState extends State<AddWasherPage> {
                         icon: Icons.phone_outlined,
                         keyboard: TextInputType.phone,
                         validatorMsg: 'Téléphone requis',
-                        onSaved: (v) => _formData['telephone'] = v!,
+                        onSaved: (v) => _formData['phone'] = v!, // Corrigé
                         bg: fieldBg,
                       ),
                       const SizedBox(height: 16),
@@ -142,7 +128,16 @@ class _AddWasherPageState extends State<AddWasherPage> {
                         hint: 'Adresse',
                         icon: Icons.home_outlined,
                         validatorMsg: 'Adresse requise',
-                        onSaved: (v) => _formData['adresse'] = v!,
+                        onSaved: (v) => _formData['address'] = v!, // Corrigé
+                        bg: fieldBg,
+                      ),
+                      const SizedBox(height: 16),
+                      _inputField(
+                        hint: 'Mot de passe',
+                        icon: Icons.lock_outline,
+                        validatorMsg: 'Mot de passe requis',
+                        obscureText: true,
+                        onSaved: (v) => _formData['password'] = v!,
                         bg: fieldBg,
                       ),
                       const SizedBox(height: 30),
@@ -158,7 +153,7 @@ class _AddWasherPageState extends State<AddWasherPage> {
                             ),
                           ),
                           child: const Text(
-                            'Enregistrer',
+                            'Suivant - Ajouter les documents',
                             style: TextStyle(fontSize: 16, color: Colors.white),
                           ),
                         ),
@@ -191,6 +186,7 @@ class _AddWasherPageState extends State<AddWasherPage> {
     TextInputType keyboard = TextInputType.text,
     String? Function(String?)? validator,
     required Color bg,
+    bool obscureText = false,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -200,12 +196,14 @@ class _AddWasherPageState extends State<AddWasherPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: TextFormField(
         keyboardType: keyboard,
+        obscureText: obscureText,
         decoration: InputDecoration(
           hintText: hint,
           border: InputBorder.none,
           icon: Icon(icon, color: Colors.grey),
         ),
-        validator: validator ?? (v) => (v == null || v.isEmpty) ? validatorMsg : null,
+        validator:
+            validator ?? (v) => (v == null || v.isEmpty) ? validatorMsg : null,
         onSaved: onSaved,
       ),
     );

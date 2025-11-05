@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:glitty/LoginWasherPage.dart';
-import 'package:glitty/WasherSetPassword.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:glitty/config/env.dart';
 
 class EnvoiDocumentsPage extends StatefulWidget {
-  final int washerId;
-  const EnvoiDocumentsPage({required this.washerId});
+  final Map<String, String> formData;
+
+  const EnvoiDocumentsPage({
+    required this.formData,
+  });
 
   @override
   _EnvoiDocumentsPageState createState() => _EnvoiDocumentsPageState();
@@ -22,22 +26,7 @@ class _EnvoiDocumentsPageState extends State<EnvoiDocumentsPage> {
   PlatformFile? permisConduire;
   PlatformFile? certificatsFormation;
 
-  late final String idWasher;
-
-  // URL dynamique selon la plateforme
-  String get baseUrl {
-    if (kIsWeb) {
-      return 'https://glitty.fr';
-    } else {
-      return 'http://10.0.2.2:3000';
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    idWasher = widget.washerId.toString();
-  }
+  bool _isLoading = false;
 
   Future<PlatformFile?> _selectFile(String label) async {
     final res = await FilePicker.platform.pickFiles();
@@ -71,7 +60,7 @@ class _EnvoiDocumentsPageState extends State<EnvoiDocumentsPage> {
     }
   }
 
-  Future<void> _send() async {
+  Future<void> _sendAllData() async {
     if (pieceIdentite == null ||
         justificatifDomicile == null ||
         certificatsFormation == null) {
@@ -82,55 +71,75 @@ class _EnvoiDocumentsPageState extends State<EnvoiDocumentsPage> {
       return;
     }
 
-    final req = http.MultipartRequest(
-        'POST', Uri.parse('$baseUrl/api/washer/documents/'));
-    req.fields['id_washer'] = idWasher;
-
-    await _addFile(req, 'piece_identite', pieceIdentite!);
-    await _addFile(req, 'justificatif_domicile', justificatifDomicile!);
-    await _addFile(req, 'certificats_formation', certificatsFormation!);
-    if (permisConduire != null) {
-      await _addFile(req, 'permis_conduire', permisConduire!);
-    }
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
-      final res = await req.send();
-      final body = await res.stream.bytesToString();
-      
-      if (res.statusCode == 201) {
-        // Documents uploadés avec succès, rediriger vers définition mot de passe
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${Env.baseUrl}/api/washer/add-washer'),
+      );
+
+      // Ajouter tous les champs du formulaire
+      request.fields.addAll(widget.formData);
+
+      // Ajouter les fichiers
+      await _addFile(request, 'piece_identite', pieceIdentite!);
+      await _addFile(request, 'justificatif_domicile', justificatifDomicile!);
+      await _addFile(request, 'certificats_formation', certificatsFormation!);
+      if (permisConduire != null) {
+        await _addFile(request, 'permis_conduire', permisConduire!);
+      }
+
+      final response = await request.send();
+      final body = await response.stream.bytesToString();
+      final result = json.decode(body);
+
+      if (response.statusCode == 201 && result['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Documents envoyés ! Définissez maintenant votre mot de passe.'),
+          SnackBar(
+            content: Text('✅ ${result['message']}'),
             backgroundColor: Colors.green,
           ),
         );
+
+        // Rediriger vers la page de connexion
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => WasherSetPasswordPage()),
+          MaterialPageRoute(builder: (_) => LoginWasherPage()),
           (route) => false,
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur upload: ${res.statusCode}'),
+            content: Text(result['message'] ?? 'Erreur lors de l\'envoi'),
             backgroundColor: Colors.red,
           ),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: $e')),
+        SnackBar(
+          content: Text('Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
-  Widget _fileTile(
-      {required String label,
-      required PlatformFile? file,
-      required VoidCallback onTap}) {
+  Widget _fileTile({
+    required String label,
+    required PlatformFile? file,
+    required VoidCallback onTap,
+    bool required = true,
+  }) {
     const bg = Color(0xFFF4F6F9);
-    const dark = Color(0xFF0F172A);
+    const dark = Color(0xFF022519);
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -139,6 +148,9 @@ class _EnvoiDocumentsPageState extends State<EnvoiDocumentsPage> {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(12),
+          border: required && file == null
+              ? Border.all(color: Colors.red, width: 1)
+              : null,
         ),
         child: Row(
           children: [
@@ -146,9 +158,13 @@ class _EnvoiDocumentsPageState extends State<EnvoiDocumentsPage> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                file == null ? label : file.name,
+                file == null
+                    ? '$label ${required ? '*' : '(optionnel)'}'
+                    : file.name,
                 style: TextStyle(
-                    color: file == null ? Colors.grey : dark, fontSize: 15),
+                  color: file == null ? Colors.grey : dark,
+                  fontSize: 15,
+                ),
               ),
             ),
             Icon(Icons.upload_file,
@@ -161,12 +177,12 @@ class _EnvoiDocumentsPageState extends State<EnvoiDocumentsPage> {
 
   @override
   Widget build(BuildContext context) {
-    const dark = Color(0xFF0F172A);
+    const dark = Color(0xFF022519);
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Documents'),
+        title: const Text('Documents requis'),
         backgroundColor: dark,
         elevation: 2,
       ),
@@ -174,7 +190,25 @@ class _EnvoiDocumentsPageState extends State<EnvoiDocumentsPage> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const Text(
+                'Téléchargez vos documents',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: dark,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Les documents marqués d\'un * sont obligatoires',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 24),
               _fileTile(
                 label: 'Pièce d\'identité',
                 file: pieceIdentite,
@@ -182,6 +216,7 @@ class _EnvoiDocumentsPageState extends State<EnvoiDocumentsPage> {
                   final f = await _selectFile('Pièce d\'identité');
                   if (f != null) setState(() => pieceIdentite = f);
                 },
+                required: true,
               ),
               _fileTile(
                 label: 'Justificatif de domicile',
@@ -190,14 +225,16 @@ class _EnvoiDocumentsPageState extends State<EnvoiDocumentsPage> {
                   final f = await _selectFile('Justificatif de domicile');
                   if (f != null) setState(() => justificatifDomicile = f);
                 },
+                required: true,
               ),
               _fileTile(
-                label: 'Permis de conduire (optionnel)',
+                label: 'Permis de conduire',
                 file: permisConduire,
                 onTap: () async {
                   final f = await _selectFile('Permis de conduire');
                   if (f != null) setState(() => permisConduire = f);
                 },
+                required: false,
               ),
               _fileTile(
                 label: 'Certificats de formation',
@@ -206,23 +243,30 @@ class _EnvoiDocumentsPageState extends State<EnvoiDocumentsPage> {
                   final f = await _selectFile('Certificats de formation');
                   if (f != null) setState(() => certificatsFormation = f);
                 },
+                required: true,
               ),
               const SizedBox(height: 30),
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _send,
+                  onPressed: _isLoading ? null : _sendAllData,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: dark,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  child: const Text(
-                    'Envoyer',
-                    style: TextStyle(fontSize: 16, color: Colors.white),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(color: Colors.white),
+                        )
+                      : const Text(
+                          'Finaliser mon inscription',
+                          style: TextStyle(fontSize: 16, color: Colors.white),
+                        ),
                 ),
               ),
             ],

@@ -8,14 +8,14 @@ import 'ClientAccueil.dart';
 
 class PaiementPage extends StatefulWidget {
   final String optionChoisie;
-  final int prix;
+//  final int prix;
   final double latitude;
   final double longitude;
 
   const PaiementPage({
     super.key,
     required this.optionChoisie,
-    required this.prix,
+    // required this.prix,
     required this.latitude,
     required this.longitude,
   });
@@ -37,7 +37,7 @@ class _PaiementPageState extends State<PaiementPage> {
     if (kIsWeb) {
       return 'https://glitty.fr';
     } else {
-      return 'http://10.0.2.2:3000';
+      return 'https://glitty.fr';
     }
   }
 
@@ -50,7 +50,7 @@ class _PaiementPageState extends State<PaiementPage> {
   Future<void> _loadClientData() async {
     final prefs = await SharedPreferences.getInstance();
     _clientId = prefs.getInt('client_id');
-    
+
     if (_clientId != null) {
       await _loadWalletBalance();
     }
@@ -78,18 +78,12 @@ class _PaiementPageState extends State<PaiementPage> {
   void _updatePaymentAmounts() {
     switch (_selectedPaymentMethod) {
       case 'portefeuille':
-        _montantPortefeuille = widget.prix.toDouble();
+        //   _montantPortefeuille = widget.prix.toDouble();
         _montantStripe = 0.0;
         break;
       case 'stripe':
         _montantPortefeuille = 0.0;
-        _montantStripe = widget.prix.toDouble();
-        break;
-      case 'mixte':
-        _montantPortefeuille = (_soldePortefeuille >= widget.prix) 
-            ? widget.prix.toDouble() 
-            : _soldePortefeuille;
-        _montantStripe = widget.prix - _montantPortefeuille;
+        // _montantStripe = widget.prix.toDouble();
         break;
     }
   }
@@ -108,7 +102,8 @@ class _PaiementPageState extends State<PaiementPage> {
     setState(() => _isLoading = true);
 
     try {
-      print('💰 Processing payment: Portefeuille: $_montantPortefeuille€, Stripe: $_montantStripe€');
+      print(
+          '💰 Processing payment: Portefeuille: $_montantPortefeuille€, Stripe: $_montantStripe€');
 
       // 1. Si on utilise le portefeuille (tout ou partie)
       if (_montantPortefeuille > 0) {
@@ -146,7 +141,7 @@ class _PaiementPageState extends State<PaiementPage> {
       body: json.encode({
         'clientId': _clientId,
         'montant': montant,
-        'description': 'Paiement lavage: ${widget.optionChoisie} (${montant}€/${widget.prix}€)',
+        'description': 'Paiement lavage: ${widget.optionChoisie} (${montant}€)',
       }),
     );
 
@@ -184,7 +179,7 @@ class _PaiementPageState extends State<PaiementPage> {
 
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      
+
       // 2. Initialiser Stripe Payment Sheet
       await Stripe.instance.initPaymentSheet(
         paymentSheetParameters: SetupPaymentSheetParameters(
@@ -206,17 +201,15 @@ class _PaiementPageState extends State<PaiementPage> {
 
   Future<void> _createReservation() async {
     try {
-      print('🔄 Creating reservation with data:');
-      print('Client ID: $_clientId, Type: ${widget.optionChoisie}, Prix: ${widget.prix}');
-      
       final response = await http.post(
         Uri.parse('$baseUrl/api/reservations/add'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'client_id': _clientId,
-          'washer_id': 1, // On utilise le premier washer disponible pour l'instant
+          'washer_id':
+              1, // On utilise le premier washer disponible pour l'instant
           'type_lavage': widget.optionChoisie,
-          'prix': widget.prix,
+          // 'prix': widget.prix,
           'latitude': widget.latitude,
           'longitude': widget.longitude,
           'statut': 'validé', // Déjà payée !
@@ -230,12 +223,14 @@ class _PaiementPageState extends State<PaiementPage> {
 
       if (response.statusCode == 201) {
         final data = json.decode(response.body);
-        
-        String message = 'Réservation créée avec succès ! ID: ${data['data']['id']}';
+
+        String message =
+            'Réservation créée avec succès ! ID: ${data['data']['id']}';
         if (_montantPortefeuille > 0 && _montantStripe > 0) {
-          message += '\nPaiement mixte: ${_montantPortefeuille}€ (portefeuille) + ${_montantStripe}€ (carte)';
+          message +=
+              '\nPaiement mixte: ${_montantPortefeuille}€ (portefeuille) + ${_montantStripe}€ (carte)';
         }
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
@@ -251,7 +246,8 @@ class _PaiementPageState extends State<PaiementPage> {
         );
       } else {
         final errorData = json.decode(response.body);
-        throw Exception('Erreur API: ${errorData['error'] ?? 'Erreur inconnue'}');
+        throw Exception(
+            'Erreur API: ${errorData['error'] ?? 'Erreur inconnue'}');
       }
     } catch (e) {
       print('❌ Reservation creation error: $e');
@@ -262,7 +258,7 @@ class _PaiementPageState extends State<PaiementPage> {
   @override
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFF022519);
-    
+
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FC),
       appBar: AppBar(
@@ -283,49 +279,65 @@ class _PaiementPageState extends State<PaiementPage> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black12, blurRadius: 4)
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
                           'Résumé de votre commande',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 12),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(widget.optionChoisie),
-                            Text('${widget.prix}€', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            // Text('${widget.prix}€',
+                            //     style: const TextStyle(
+                            //         fontWeight: FontWeight.bold)),
                           ],
                         ),
                         const Divider(),
-                        
+
                         // Détail du paiement selon la méthode choisie
-                        if (_selectedPaymentMethod == 'mixte' && _montantPortefeuille > 0 && _montantStripe > 0) ...[
+                        if (_selectedPaymentMethod == 'mixte' &&
+                            _montantPortefeuille > 0 &&
+                            _montantStripe > 0) ...[
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('Portefeuille', style: TextStyle(color: Colors.green)),
-                              Text('-${_montantPortefeuille.toStringAsFixed(2)}€', style: const TextStyle(color: Colors.green)),
+                              const Text('Portefeuille',
+                                  style: TextStyle(color: Colors.green)),
+                              Text(
+                                  '-${_montantPortefeuille.toStringAsFixed(2)}€',
+                                  style: const TextStyle(color: Colors.green)),
                             ],
                           ),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('Carte bancaire', style: TextStyle(color: Colors.blue)),
-                              Text('${_montantStripe.toStringAsFixed(2)}€', style: const TextStyle(color: Colors.blue)),
+                              const Text('Carte bancaire',
+                                  style: TextStyle(color: Colors.blue)),
+                              Text('${_montantStripe.toStringAsFixed(2)}€',
+                                  style: const TextStyle(color: Colors.blue)),
                             ],
                           ),
                           const Divider(),
                         ],
-                        
+
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Total', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                            Text('${widget.prix}€', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            const Text('Total',
+                                style: TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.bold)),
+                            // Text('${widget.prix}€',
+                            //     style: const TextStyle(
+                            //         fontSize: 16, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ],
@@ -344,11 +356,13 @@ class _PaiementPageState extends State<PaiementPage> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.account_balance_wallet, color: Colors.green),
+                        const Icon(Icons.account_balance_wallet,
+                            color: Colors.green),
                         const SizedBox(width: 12),
                         Text(
                           'Solde disponible: ${_soldePortefeuille.toStringAsFixed(2)}€',
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 16),
                         ),
                       ],
                     ),
@@ -364,32 +378,32 @@ class _PaiementPageState extends State<PaiementPage> {
                   const SizedBox(height: 16),
 
                   // Option 1: Tout avec le portefeuille
-                  if (_soldePortefeuille >= widget.prix) ...[
-                    _buildPaymentOption(
-                      'portefeuille',
-                      'Portefeuille uniquement',
-                      'Payer ${widget.prix}€ avec vos crédits',
-                      Icons.account_balance_wallet,
-                      Colors.green,
-                      primaryColor,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
+                  //   if (_soldePortefeuille >= widget.prix) ...[
+                  //     _buildPaymentOption(
+                  //       'portefeuille',
+                  //       'Portefeuille uniquement',
+                  //       'Payer ${widget.prix}€ avec vos crédits',
+                  //       Icons.account_balance_wallet,
+                  //       Colors.green,
+                  //       primaryColor,
+                  //     ),
+                  //     const SizedBox(height: 12),
+                  //   ],
 
                   // Option 2: Paiement mixte (portefeuille + carte)
-                  if (_soldePortefeuille > 0) ...[
-                    _buildPaymentOption(
-                      'mixte',
-                      'Paiement mixte',
-                      _soldePortefeuille >= widget.prix 
-                          ? 'Utilisez une partie de vos crédits'
-                          : 'Portefeuille: ${_soldePortefeuille.toStringAsFixed(2)}€ + Carte: ${(widget.prix - _soldePortefeuille).toStringAsFixed(2)}€',
-                      Icons.payments,
-                      Colors.orange,
-                      primaryColor,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
+                  //  if (_soldePortefeuille > 0) ...[
+                  //    _buildPaymentOption(
+                  //       'mixte',
+                  //       'Paiement mixte',
+                  //       _soldePortefeuille >= widget.prix
+                  //           ? 'Utilisez une partie de vos crédits'
+                  //           : 'Portefeuille: ${_soldePortefeuille.toStringAsFixed(2)}€ + Carte: ${(widget.prix - _soldePortefeuille).toStringAsFixed(2)}€',
+                  //       Icons.payments,
+                  //       Colors.orange,
+                  //      primaryColor,
+                  //     ),
+                  //    const SizedBox(height: 12),
+                  //   ],
 
                   // Option 3: Carte bancaire uniquement
                   if (!kIsWeb) ...[
@@ -418,10 +432,11 @@ class _PaiementPageState extends State<PaiementPage> {
                         ),
                       ),
                       child: Text(
-                        _isLoading 
-                            ? 'Traitement...' 
-                            : _getPaymentButtonText(),
-                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        _isLoading ? 'Traitement...' : _getPaymentButtonText(),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
@@ -431,7 +446,7 @@ class _PaiementPageState extends State<PaiementPage> {
     );
   }
 
-  Widget _buildPaymentOption(String value, String title, String subtitle, 
+  Widget _buildPaymentOption(String value, String title, String subtitle,
       IconData icon, Color iconColor, Color primaryColor) {
     return GestureDetector(
       onTap: () {
@@ -443,10 +458,14 @@ class _PaiementPageState extends State<PaiementPage> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: _selectedPaymentMethod == value ? primaryColor.withOpacity(0.1) : Colors.white,
+          color: _selectedPaymentMethod == value
+              ? primaryColor.withOpacity(0.1)
+              : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: _selectedPaymentMethod == value ? primaryColor : Colors.grey[300]!,
+            color: _selectedPaymentMethod == value
+                ? primaryColor
+                : Colors.grey[300]!,
             width: 2,
           ),
         ),
@@ -471,7 +490,8 @@ class _PaiementPageState extends State<PaiementPage> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                   Text(
                     subtitle,
@@ -491,17 +511,17 @@ class _PaiementPageState extends State<PaiementPage> {
   String _getPaymentButtonText() {
     switch (_selectedPaymentMethod) {
       case 'portefeuille':
-        return 'Payer ${widget.prix}€ avec le portefeuille';
+        return 'Payer € avec le portefeuille';
       case 'stripe':
-        return 'Payer ${widget.prix}€ par carte';
+        return 'Payer € par carte';
       case 'mixte':
         if (_montantStripe > 0) {
           return 'Payer ${_montantStripe.toStringAsFixed(2)}€ par carte';
         } else {
-          return 'Payer ${widget.prix}€ avec le portefeuille';
+          return 'Payer € avec le portefeuille';
         }
       default:
         return 'Procéder au paiement';
     }
   }
-} 
+}

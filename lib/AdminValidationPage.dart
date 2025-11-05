@@ -19,7 +19,7 @@ class _AdminValidationPageState extends State<AdminValidationPage> {
     if (kIsWeb) {
       return 'https://glitty.fr';
     } else {
-      return 'http://10.0.2.2:3000';
+      return 'https://glitty.fr';
     }
   }
 
@@ -63,8 +63,8 @@ class _AdminValidationPageState extends State<AdminValidationPage> {
       );
 
       if (response.statusCode == 200) {
-        _showSuccess(approved 
-            ? "Washer approuvé avec succès !" 
+        _showSuccess(approved
+            ? "Washer approuvé avec succès !"
             : "Washer rejeté avec succès !");
         await _fetchPendingWashers(); // Rafraîchir la liste
       } else {
@@ -92,7 +92,7 @@ class _AdminValidationPageState extends State<AdminValidationPage> {
   @override
   Widget build(BuildContext context) {
     const darkColor = Color(0xFF022519);
-    
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -216,30 +216,35 @@ class _AdminValidationPageState extends State<AdminValidationPage> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // Informations personnelles
             _buildInfoSection('Informations personnelles', [
               _buildInfoRow('Email', washer['email']),
               _buildInfoRow('Téléphone', washer['telephone']),
               _buildInfoRow('Adresse', washer['adresse']),
-              _buildInfoRow('Date d\'inscription', 
-                  washer['date_creation']?.toString().substring(0, 10) ?? 'N/A'),
+              _buildInfoRow(
+                  'Date d\'inscription',
+                  washer['date_creation']?.toString().substring(0, 10) ??
+                      'N/A'),
             ]),
-            
+
             const SizedBox(height: 20),
-            
+
             // Documents soumis
             _buildInfoSection('Documents soumis', [
               _buildDocumentRow('Pièce d\'identité', washer['piece_identite']),
-              _buildDocumentRow('Justificatif domicile', washer['justificatif_domicile']),
-              _buildDocumentRow('Permis de conduire', washer['permis_conduire']),
-              _buildDocumentRow('Certificats formation', washer['certificats_formation']),
+              _buildDocumentRow(
+                  'Justificatif domicile', washer['justificatif_domicile']),
+              _buildDocumentRow(
+                  'Permis de conduire', washer['permis_conduire']),
+              _buildDocumentRow(
+                  'Certificats formation', washer['certificats_formation']),
             ]),
-            
+
             const SizedBox(height: 24),
-            
+
             // Boutons d'action
             Row(
               children: [
@@ -247,7 +252,8 @@ class _AdminValidationPageState extends State<AdminValidationPage> {
                   child: ElevatedButton.icon(
                     onPressed: () => _showRejectDialog(washer),
                     icon: const Icon(Icons.close, color: Colors.white),
-                    label: const Text('Rejeter', style: TextStyle(color: Colors.white)),
+                    label: const Text('Rejeter',
+                        style: TextStyle(color: Colors.white)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -262,7 +268,8 @@ class _AdminValidationPageState extends State<AdminValidationPage> {
                   child: ElevatedButton.icon(
                     onPressed: () => _showApproveDialog(washer),
                     icon: const Icon(Icons.check, color: Colors.white),
-                    label: const Text('Approuver', style: TextStyle(color: Colors.white)),
+                    label: const Text('Approuver',
+                        style: TextStyle(color: Colors.white)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -335,7 +342,7 @@ class _AdminValidationPageState extends State<AdminValidationPage> {
 
   Widget _buildDocumentRow(String label, String? fileName) {
     final hasDocument = fileName != null && fileName.isNotEmpty;
-    
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -393,7 +400,8 @@ class _AdminValidationPageState extends State<AdminValidationPage> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('Approuver', style: TextStyle(color: Colors.white)),
+            child:
+                const Text('Approuver', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -431,4 +439,4 @@ class _AdminValidationPageState extends State<AdminValidationPage> {
       await _validateWasher(washer['id'], false);
     }
   }
-} 
+}

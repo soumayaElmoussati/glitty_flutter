@@ -5,12 +5,12 @@ import 'package:latlong2/latlong.dart';
 
 class LocalisationChoix extends StatefulWidget {
   final String optionChoisie;
-  final int prix;
+  // final int prix;
 
   const LocalisationChoix({
     super.key,
     required this.optionChoisie,
-    required this.prix,
+    //  required this.prix,
   });
 
   @override
@@ -18,7 +18,7 @@ class LocalisationChoix extends StatefulWidget {
 }
 
 class _LocalisationChoixState extends State<LocalisationChoix> {
-  LatLng _selectedPosition = LatLng(31.63, -8.01); // Position initiale Marrakech
+  LatLng _selectedPosition = LatLng(31.63, -8.01);
 
   @override
   Widget build(BuildContext context) {
@@ -47,13 +47,14 @@ class _LocalisationChoixState extends State<LocalisationChoix> {
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.example.glitty',
                 ),
-               MarkerLayer(
+                MarkerLayer(
                   markers: [
                     Marker(
                       width: 40,
                       height: 40,
                       point: _selectedPosition,
-                      builder: (context) => const Icon(Icons.location_on, color: Colors.red, size: 40),
+                      builder: (context) => const Icon(Icons.location_on,
+                          color: Colors.red, size: 40),
                     ),
                   ],
                 ),
@@ -69,7 +70,8 @@ class _LocalisationChoixState extends State<LocalisationChoix> {
                   style: const TextStyle(fontSize: 18),
                 ),
                 const SizedBox(height: 4),
-                Text("Prix : ${widget.prix} €", style: const TextStyle(color: Colors.grey)),
+                // Text("Prix : ${widget.prix} €",
+                //   style: const TextStyle(color: Colors.grey)),
                 const SizedBox(height: 10),
                 Text(
                   "Coordonnées : ${_selectedPosition.latitude.toStringAsFixed(5)}, ${_selectedPosition.longitude.toStringAsFixed(5)}",
@@ -84,19 +86,21 @@ class _LocalisationChoixState extends State<LocalisationChoix> {
                       MaterialPageRoute(
                         builder: (_) => PaiementPage(
                           optionChoisie: widget.optionChoisie,
-                          prix: widget.prix,
+                          // prix: widget.prix,
                           latitude: _selectedPosition.latitude,
                           longitude: _selectedPosition.longitude,
                         ),
                       ),
                     );
                   },
-
                   style: ElevatedButton.styleFrom(
                     backgroundColor: dark,
                     minimumSize: const Size(double.infinity, 50),
                   ),
-                  child: const Text("Continuer vers le paiement",style: TextStyle(color: Colors.white),),
+                  child: const Text(
+                    "Continuer vers le paiement",
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
               ],
             ),

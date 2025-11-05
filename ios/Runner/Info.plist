@@ -29,6 +29,10 @@
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
 	<key>UISupportedInterfaceOrientations</key>
+	<key>NSLocationWhenInUseUsageDescription</key>
+    <string>Cette application a besoin d'accéder à votre position pour afficher la carte</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+    <string>Cette application a besoin d'accéder à votre position en permanence</string>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>

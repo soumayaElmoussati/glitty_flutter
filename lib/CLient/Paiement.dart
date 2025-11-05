@@ -38,13 +38,13 @@ class _PaiementPageState extends State<PaiementPage> {
     if (kIsWeb) {
       return 'https://glitty.fr'; // Web uses localhost
     } else {
-      return 'http://10.0.2.2:3000'; // Mobile emulator uses 10.0.2.2
+      return 'https://glitty.fr'; // Mobile emulator uses 10.0.2.2
     }
   }
 
   Future<void> _handlePayment() async {
     setState(() => _isLoading = true);
-    
+
     try {
       if (kIsWeb) {
         await _handleWebPayment();
@@ -86,7 +86,8 @@ class _PaiementPageState extends State<PaiementPage> {
             const Text('2. Ou utilisez l\'application mobile'),
             const SizedBox(height: 16),
             Text('Réservation: #${widget.reservationId}'),
-            Text('Montant: ${(widget.amount/100).toStringAsFixed(2)} ${widget.currency}'),
+            Text(
+                'Montant: ${(widget.amount / 100).toStringAsFixed(2)} ${widget.currency}'),
           ],
         ),
         actions: [
@@ -116,7 +117,7 @@ class _PaiementPageState extends State<PaiementPage> {
     }
 
     final paymentIntent = json.decode(response.body);
-    
+
     // 2. Confirm Payment
     await _confirmPaymentMobile(paymentIntent['clientSecret']);
 
@@ -145,7 +146,8 @@ class _PaiementPageState extends State<PaiementPage> {
     );
 
     if (response.statusCode != 200) {
-      throw Exception('Failed to confirm payment with backend: ${response.body}');
+      throw Exception(
+          'Failed to confirm payment with backend: ${response.body}');
     }
   }
 
@@ -188,13 +190,13 @@ class _PaiementPageState extends State<PaiementPage> {
                     ),
                     const SizedBox(height: 8),
                     Text('Réservation #${widget.reservationId}'),
-                    Text('Montant: ${(widget.amount/100).toStringAsFixed(2)} ${widget.currency}'),
+                    Text(
+                        'Montant: ${(widget.amount / 100).toStringAsFixed(2)} ${widget.currency}'),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 20),
-            
             if (kIsWeb) ...[
               Card(
                 child: Padding(
@@ -220,7 +222,6 @@ class _PaiementPageState extends State<PaiementPage> {
             ] else if (_cardController != null) ...[
               CardField(controller: _cardController!),
             ],
-            
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _isLoading ? null : _handlePayment,
@@ -229,7 +230,7 @@ class _PaiementPageState extends State<PaiementPage> {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              child: _isLoading 
+              child: _isLoading
                   ? const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -238,7 +239,8 @@ class _PaiementPageState extends State<PaiementPage> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         ),
                         SizedBox(width: 8),
@@ -246,13 +248,12 @@ class _PaiementPageState extends State<PaiementPage> {
                       ],
                     )
                   : Text(
-                      kIsWeb 
-                        ? 'Procéder au paiement ${(widget.amount/100).toStringAsFixed(2)} €'
-                        : 'Payer ${(widget.amount/100).toStringAsFixed(2)} €',
+                      kIsWeb
+                          ? 'Procéder au paiement ${(widget.amount / 100).toStringAsFixed(2)} €'
+                          : 'Payer ${(widget.amount / 100).toStringAsFixed(2)} €',
                       style: const TextStyle(fontSize: 16),
                     ),
             ),
-            
             if (kIsWeb) ...[
               const SizedBox(height: 16),
               Row(

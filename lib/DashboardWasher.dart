@@ -2,54 +2,240 @@ import 'package:flutter/material.dart';
 import 'package:glitty/LoginWasherPage.dart';
 import 'package:glitty/WasherSetGPS.dart';
 import 'package:glitty/WasherSetPassword.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:glitty/config/env.dart';
 
-class DashboardWasherPage extends StatelessWidget {
+// Importez votre page MesTicketsWasher
+import 'package:glitty/MesTicketsWasher.dart'; // Assurez-vous que le chemin est correct
+
+class DashboardWasherPage extends StatefulWidget {
   final String nom;
+  final int washerId;
+  final Map<String, dynamic>? washerData;
 
-  const DashboardWasherPage({Key? key, required this.nom}) : super(key: key);
+  const DashboardWasherPage(
+      {Key? key, required this.nom, this.washerData, required this.washerId})
+      : super(key: key);
+
+  @override
+  _DashboardWasherPageState createState() => _DashboardWasherPageState();
+}
+
+class _DashboardWasherPageState extends State<DashboardWasherPage> {
+  Map<String, dynamic> _stats = {'total_commandes': 0, 'total_revenus': 0};
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchWasherStats();
+  }
+
+  Future<void> _fetchWasherStats() async {
+    try {
+      final response = await http.get(
+        Uri.parse(
+            '${Env.baseUrl}/api/commande/total-commande-washer/${widget.washerId}'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          setState(() {
+            _stats = data['data'];
+            _isLoading = false;
+          });
+        }
+      } else {
+        _showError("Erreur lors du chargement des statistiques");
+      }
+    } catch (e) {
+      print('❌ Erreur API stats: $e');
+      _showError("Erreur de connexion");
+    } finally {
+      if (_isLoading) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFF1A2C42);
     const accentColor = Color(0xFF4CAF50);
-    const lightBackground = Color(0xFFF8FAFC);
-    
+    const dark = Color(0xFF022519);
+
     return Scaffold(
-      backgroundColor: lightBackground,
-      drawer: _buildModernDrawer(context, primaryColor, accentColor),
-      body: CustomScrollView(
-        slivers: [
-          _buildSliverAppBar(context, primaryColor, accentColor),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
+      backgroundColor: dark,
+      drawer: _buildModernDrawer(context, dark, accentColor),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Partie supérieure identique
+            Container(
+              height: 180,
+              width: double.infinity,
+              color: dark,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildWelcomeSection(nom, primaryColor),
-                  const SizedBox(height: 30),
-                  _buildStatsGrid(context, primaryColor, accentColor),
-                  const SizedBox(height: 30),
-                  _buildQuickActionsSection(context, primaryColor),
-                  const SizedBox(height: 30),
-                  _buildRecentActivitySection(primaryColor),
+                  // Première ligne : icônes menu, logo, notification
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Builder(
+                        builder: (context) => GestureDetector(
+                          onTap: () => Scaffold.of(context).openDrawer(),
+                          child: Image.asset(
+                            'assets/menu-icone.png',
+                            width: 24,
+                            height: 24,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      Image.asset(
+                        'assets/logo-glitty.png',
+                        width: 149,
+                        height: 69,
+                      ),
+                      Image.asset(
+                        'assets/notification-icone.png',
+                        width: 24,
+                        height: 24,
+                        color: Colors.white,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 40,
+                          child: const Center(
+                            child: Text(
+                              "Washer Dashboard",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontFamily: "DM Sans",
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
-          ),
-        ],
+
+            // Contenu principal du dashboard
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(40),
+                    topRight: Radius.circular(40),
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildWelcomeSection(widget.nom, dark),
+                      const SizedBox(height: 30),
+                      _buildStatsGrid(context, dark, accentColor),
+                      const SizedBox(height: 30),
+                      _buildQuickActionsSection(context, dark),
+                      const SizedBox(height: 30),
+                      _buildRecentActivitySection(dark),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildModernDrawer(BuildContext context, Color primaryColor, Color accentColor) {
+  // MODIFIEZ LA MÉTHODE _buildStatsGrid
+  Widget _buildStatsGrid(BuildContext context, Color dark, Color accentColor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Statistiques",
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: dark,
+          ),
+        ),
+        const SizedBox(height: 15),
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                  "Missions",
+                  _isLoading ? "..." : "${_stats['total_commandes']}",
+                  Icons.cleaning_services_rounded,
+                  const Color(0xFF2196F3)),
+            ),
+            const SizedBox(width: 15),
+            Expanded(
+              child: _buildStatCard(
+                  "Revenus",
+                  _isLoading ? "..." : "${_stats['total_revenus']}€",
+                  Icons.euro_rounded,
+                  const Color(0xFF4CAF50)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 15),
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard("Taux réussite", _isLoading ? "..." : "98%",
+                  Icons.trending_up_rounded, const Color(0xFFFF9800)),
+            ),
+            const SizedBox(width: 15),
+            Expanded(
+              child: _buildStatCard("Satisfaction", "4.9★", Icons.star_rounded,
+                  const Color(0xFFFFD700)),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // MÉTHODE _buildModernDrawer MODIFIÉE avec "Aide & Support"
+  Widget _buildModernDrawer(
+      BuildContext context, Color dark, Color accentColor) {
     return Drawer(
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [primaryColor, primaryColor.withOpacity(0.8)],
+            colors: [dark, dark.withOpacity(0.8)],
           ),
         ),
         child: Column(
@@ -70,7 +256,9 @@ class DashboardWasherPage extends StatelessWidget {
                       radius: 35,
                       backgroundColor: accentColor,
                       child: Text(
-                        nom.isNotEmpty ? nom[0].toUpperCase() : 'W',
+                        widget.nom.isNotEmpty
+                            ? widget.nom[0].toUpperCase()
+                            : 'W',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 24,
@@ -81,7 +269,7 @@ class DashboardWasherPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 15),
                   Text(
-                    nom,
+                    widget.nom,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
@@ -90,14 +278,15 @@ class DashboardWasherPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: accentColor.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: accentColor.withOpacity(0.3)),
                     ),
                     child: const Text(
-                      "● Washers",
+                      "● Washer",
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -124,53 +313,84 @@ class DashboardWasherPage extends StatelessWidget {
                       Icons.dashboard_rounded,
                       "Dashboard",
                       true,
-                      primaryColor,
+                      dark,
                       () => Navigator.pop(context),
                     ),
                     _buildDrawerItem(
                       Icons.notifications_rounded,
                       "Notifications",
                       false,
-                      primaryColor,
+                      dark,
                       () => Navigator.pushNamed(context, '/notifications'),
                     ),
                     _buildDrawerItem(
                       Icons.calendar_month_rounded,
                       "Planning",
                       false,
-                      primaryColor,
+                      dark,
                       () => Navigator.pushNamed(context, '/calendrier'),
                     ),
                     _buildDrawerItem(
                       Icons.account_balance_wallet_rounded,
                       "Mes gains",
                       false,
-                      primaryColor,
+                      dark,
                       () => Navigator.pushNamed(context, '/washer-earnings'),
                     ),
                     _buildDrawerItem(
                       Icons.lock_rounded,
                       "Sécurité",
                       false,
-                      primaryColor,
-                      () => Navigator.push(context, MaterialPageRoute(builder: (_) => WasherSetPasswordPage())),
+                      dark,
+                      () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => WasherSetPasswordPage())),
                     ),
                     _buildDrawerItem(
                       Icons.location_on_rounded,
                       "Localisation",
                       false,
-                      primaryColor,
-                      () => Navigator.push(context, MaterialPageRoute(builder: (_) => WasherSetGPSPage())),
+                      dark,
+                      () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => WasherSetGPSPage(
+                                    washerId: widget.washerId,
+                                  ))),
+                    ),
+                    // NOUVEL ITEM : Aide & Support
+                    _buildDrawerItem(
+                      Icons.help_rounded,
+                      "Aide & Support",
+                      false,
+                      dark,
+                      () {
+                        Navigator.pop(context); // Fermer le drawer
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MesTicketsWasher(
+                              washerId: widget.washerId,
+                              washerData: widget.washerData,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     const Spacer(),
                     Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 10),
                       child: _buildDrawerItem(
                         Icons.logout_rounded,
                         "Déconnexion",
                         false,
                         Colors.red,
-                        () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => LoginWasherPage())),
+                        () => Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => LoginWasherPage())),
                       ),
                     ),
                   ],
@@ -183,7 +403,8 @@ class DashboardWasherPage extends StatelessWidget {
     );
   }
 
-  Widget _buildDrawerItem(IconData icon, String title, bool isActive, Color color, VoidCallback onTap) {
+  Widget _buildDrawerItem(IconData icon, String title, bool isActive,
+      Color color, VoidCallback onTap) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 3),
       decoration: BoxDecoration(
@@ -210,62 +431,7 @@ class DashboardWasherPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSliverAppBar(BuildContext context, Color primaryColor, Color accentColor) {
-    return SliverAppBar(
-      expandedHeight: 120,
-      floating: false,
-      pinned: true,
-      flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [primaryColor, primaryColor.withOpacity(0.8)],
-            ),
-          ),
-        ),
-        title: const Text(
-          "Washer Dashboard",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-            fontSize: 20,
-          ),
-        ),
-      ),
-      backgroundColor: primaryColor,
-      iconTheme: const IconThemeData(color: Colors.white),
-      actions: [
-        Container(
-          margin: const EdgeInsets.only(right: 15),
-          child: IconButton(
-            icon: Stack(
-              children: [
-                const Icon(Icons.notifications_rounded, color: Colors.white, size: 26),
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: accentColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            onPressed: () => Navigator.pushNamed(context, '/notifications'),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildWelcomeSection(String nom, Color primaryColor) {
+  Widget _buildWelcomeSection(String nom, Color dark) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -295,7 +461,7 @@ class DashboardWasherPage extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: primaryColor,
+                    color: dark,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -308,7 +474,8 @@ class DashboardWasherPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 15),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
                   decoration: BoxDecoration(
                     color: const Color(0xFF4CAF50).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
@@ -332,14 +499,17 @@ class DashboardWasherPage extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [primaryColor.withOpacity(0.1), const Color(0xFF4CAF50).withOpacity(0.1)],
+                colors: [
+                  dark.withOpacity(0.1),
+                  const Color(0xFF4CAF50).withOpacity(0.1)
+                ],
               ),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Icon(
               Icons.workspace_premium_rounded,
               size: 40,
-              color: primaryColor,
+              color: dark,
             ),
           ),
         ],
@@ -347,39 +517,8 @@ class DashboardWasherPage extends StatelessWidget {
     );
   }
 
-  Widget _buildStatsGrid(BuildContext context, Color primaryColor, Color accentColor) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "Statistiques du jour",
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: primaryColor,
-          ),
-        ),
-        const SizedBox(height: 15),
-        Row(
-          children: [
-            Expanded(child: _buildStatCard("Missions", "12", Icons.cleaning_services_rounded, const Color(0xFF2196F3))),
-            const SizedBox(width: 15),
-            Expanded(child: _buildStatCard("Revenus", "245€", Icons.euro_rounded, const Color(0xFF4CAF50))),
-          ],
-        ),
-        const SizedBox(height: 15),
-        Row(
-          children: [
-            Expanded(child: _buildStatCard("Temps", "6h 30m", Icons.access_time_rounded, const Color(0xFFFF9800))),
-            const SizedBox(width: 15),
-            Expanded(child: _buildStatCard("Note", "4.9★", Icons.star_rounded, const Color(0xFFFFD700))),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+      String title, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -428,7 +567,8 @@ class DashboardWasherPage extends StatelessWidget {
     );
   }
 
-  Widget _buildQuickActionsSection(BuildContext context, Color primaryColor) {
+  // ... Les autres méthodes (_buildQuickActionsSection, _buildActionCard, etc.) restent inchangées
+  Widget _buildQuickActionsSection(BuildContext context, Color dark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -437,7 +577,7 @@ class DashboardWasherPage extends StatelessWidget {
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: primaryColor,
+            color: dark,
           ),
         ),
         const SizedBox(height: 15),
@@ -555,7 +695,7 @@ class DashboardWasherPage extends StatelessWidget {
     );
   }
 
-  Widget _buildRecentActivitySection(Color primaryColor) {
+  Widget _buildRecentActivitySection(Color dark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -564,7 +704,7 @@ class DashboardWasherPage extends StatelessWidget {
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: primaryColor,
+            color: dark,
           ),
         ),
         const SizedBox(height: 15),
@@ -584,11 +724,22 @@ class DashboardWasherPage extends StatelessWidget {
           ),
           child: Column(
             children: [
-              _buildActivityItem("Mission terminée", "Lavage complet - 35€", Icons.check_circle_rounded, const Color(0xFF4CAF50), "Il y a 2h"),
+              _buildActivityItem(
+                  "Mission terminée",
+                  "Lavage complet - 35€",
+                  Icons.check_circle_rounded,
+                  const Color(0xFF4CAF50),
+                  "Il y a 2h"),
               const Divider(height: 30),
-              _buildActivityItem("Nouveau planning", "3 missions programmées", Icons.calendar_today_rounded, const Color(0xFF2196F3), "Il y a 4h"),
+              _buildActivityItem(
+                  "Nouveau planning",
+                  "3 missions programmées",
+                  Icons.calendar_today_rounded,
+                  const Color(0xFF2196F3),
+                  "Il y a 4h"),
               const Divider(height: 30),
-              _buildActivityItem("Paiement reçu", "Virement de 180€", Icons.payment_rounded, const Color(0xFF4CAF50), "Hier"),
+              _buildActivityItem("Paiement reçu", "Virement de 180€",
+                  Icons.payment_rounded, const Color(0xFF4CAF50), "Hier"),
             ],
           ),
         ),
@@ -596,7 +747,8 @@ class DashboardWasherPage extends StatelessWidget {
     );
   }
 
-  Widget _buildActivityItem(String title, String subtitle, IconData icon, Color color, String time) {
+  Widget _buildActivityItem(
+      String title, String subtitle, IconData icon, Color color, String time) {
     return Row(
       children: [
         Container(

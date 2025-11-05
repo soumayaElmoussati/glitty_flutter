@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:glitty/DashboardWasher.dart';
+import 'package:glitty/config/env.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'AddWasherPage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginWasherPage extends StatefulWidget {
   const LoginWasherPage({Key? key}) : super(key: key);
@@ -22,35 +24,29 @@ class _LoginWasherPageState extends State<LoginWasherPage> {
   final dark = const Color(0xFF022519);
   final fieldBg = const Color(0xFFF4F6F9);
 
-  // Get the appropriate API base URL based on platform
-  String get apiBaseUrl {
-    if (kIsWeb) {
-      return 'https://glitty.fr'; // Web uses localhost
-    } else {
-      return 'http://10.0.2.2:3000'; // Mobile emulator uses 10.0.2.2
-    }
-  }
-
   Future<void> _login() async {
     if (_isLoading) return; // Prevent multiple calls
-    
+
     setState(() {
       _isLoading = true;
       _message = '';
     });
 
     try {
-      print(' Tentative de connexion à: $apiBaseUrl/api/washer/login');
+      print(
+          ' Tentative de connexion à: ${Env.baseUrl}/api/washer/login-washer');
       print(' Email: $email');
-      
-      final response = await http.post(
-        Uri.parse('$apiBaseUrl/api/washer/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'mot_de_passe': password,
-        }),
-      ).timeout(const Duration(seconds: 10)); // Add timeout
+
+      final response = await http
+          .post(
+            Uri.parse('${Env.baseUrl}/api/washer/login-washer'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': email,
+              'password': password,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       print(' Response status: ${response.statusCode}');
       print(' Response body: ${response.body}');
@@ -59,13 +55,26 @@ class _LoginWasherPageState extends State<LoginWasherPage> {
 
       if (response.statusCode == 200) {
         final washer = result['washer'];
-        print(' Connexion réussie pour: ${washer['nom']}');
-        
+        final token = result['token'];
+        final washerId = washer['id']; // Récupérer l'ID du washer
+
+        print(' Connexion réussie pour: ${washer['first_name']}');
+        print(' ID du washer: $washerId');
+        print(' Token reçu: $token');
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('washer_token', token);
+        await prefs.setInt('washer_id', washerId); // Sauvegarder l'ID aussi
+
         if (mounted) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => DashboardWasherPage(nom: washer['nom']),
+              builder: (_) => DashboardWasherPage(
+                nom: washer['first_name'],
+                washerId: washerId,
+                washerData: washer,
+              ),
             ),
           );
         }
@@ -163,7 +172,7 @@ class _LoginWasherPageState extends State<LoginWasherPage> {
                 'Connectez‑vous pour continuer',
                 style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               ),
-              
+
               // Platform info for debugging
               if (kIsWeb) ...[
                 const SizedBox(height: 8),
@@ -174,12 +183,12 @@ class _LoginWasherPageState extends State<LoginWasherPage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    '🌐 Version Web - API: $apiBaseUrl',
+                    '🌐 Version Web - API: ${Env.baseUrl}',
                     style: const TextStyle(fontSize: 12, color: Colors.blue),
                   ),
                 ),
               ],
-              
+
               const SizedBox(height: 40),
               Form(
                 key: _formKey,
@@ -189,8 +198,9 @@ class _LoginWasherPageState extends State<LoginWasherPage> {
                       hint: 'Email',
                       icon: Icons.email_outlined,
                       onSaved: (v) => email = v ?? '',
-                      validator: (v) =>
-                          v != null && v.contains('@') ? null : 'Email invalide',
+                      validator: (v) => v != null && v.contains('@')
+                          ? null
+                          : 'Email invalide',
                       bg: fieldBg,
                     ),
                     const SizedBox(height: 16),
@@ -199,8 +209,9 @@ class _LoginWasherPageState extends State<LoginWasherPage> {
                       icon: Icons.lock_outline,
                       obscure: true,
                       onSaved: (v) => password = v ?? '',
-                      validator: (v) =>
-                          v != null && v.length >= 4 ? null : 'Mot de passe requis',
+                      validator: (v) => v != null && v.length >= 4
+                          ? null
+                          : 'Mot de passe requis',
                       bg: fieldBg,
                     ),
                     const SizedBox(height: 30),
@@ -208,12 +219,14 @@ class _LoginWasherPageState extends State<LoginWasherPage> {
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : () {
-                          if (_formKey.currentState!.validate()) {
-                            _formKey.currentState!.save();
-                            _login();
-                          }
-                        },
+                        onPressed: _isLoading
+                            ? null
+                            : () {
+                                if (_formKey.currentState!.validate()) {
+                                  _formKey.currentState!.save();
+                                  _login();
+                                }
+                              },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: dark,
                           disabledBackgroundColor: dark.withOpacity(0.6),
@@ -230,12 +243,13 @@ class _LoginWasherPageState extends State<LoginWasherPage> {
                                     height: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.white),
                                     ),
                                   ),
                                   SizedBox(width: 12),
-                                  Text('Connexion en cours...', 
-                                       style: TextStyle(color: Colors.white)),
+                                  Text('Connexion en cours...',
+                                      style: TextStyle(color: Colors.white)),
                                 ],
                               )
                             : const Text('Se connecter',
@@ -292,7 +306,6 @@ class _LoginWasherPageState extends State<LoginWasherPage> {
                         ),
                       ],
                     ),
-
                   ],
                 ),
               )

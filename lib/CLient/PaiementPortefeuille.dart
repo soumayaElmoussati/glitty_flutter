@@ -16,7 +16,8 @@ class PaiementPortefeuillePage extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _PaiementPortefeuillePageState createState() => _PaiementPortefeuillePageState();
+  _PaiementPortefeuillePageState createState() =>
+      _PaiementPortefeuillePageState();
 }
 
 class _PaiementPortefeuillePageState extends State<PaiementPortefeuillePage> {
@@ -37,13 +38,13 @@ class _PaiementPortefeuillePageState extends State<PaiementPortefeuillePage> {
     if (kIsWeb) {
       return 'https://glitty.fr'; // Web uses localhost
     } else {
-      return 'http://10.0.2.2:3000'; // Mobile emulator uses 10.0.2.2
+      return 'https://glitty.fr'; // Mobile emulator uses 10.0.2.2
     }
   }
 
   Future<void> _handlePayment() async {
     setState(() => _isLoading = true);
-    
+
     try {
       if (kIsWeb) {
         await _handleWebPayment();
@@ -69,7 +70,7 @@ class _PaiementPortefeuillePageState extends State<PaiementPortefeuillePage> {
   Future<void> _handleWebPayment() async {
     // Simulation de paiement pour Web
     await Future.delayed(const Duration(seconds: 1));
-    
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -105,18 +106,20 @@ class _PaiementPortefeuillePageState extends State<PaiementPortefeuillePage> {
     }
 
     final paymentIntent = json.decode(response.body);
-    
+
     // 2. Confirm Payment
     await _confirmPaymentMobile(paymentIntent['client_secret']);
 
     // 3. Confirm payment with backend
-    await _confirmPaymentWithBackend(paymentIntent['payment_intent_id'], clientId);
+    await _confirmPaymentWithBackend(
+        paymentIntent['payment_intent_id'], clientId);
 
     // 4. Show success and return
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('✅ Paiement réussi! +${(widget.montant + widget.bonus).toStringAsFixed(2)}€ crédités'),
+          content: Text(
+              '✅ Paiement réussi! +${(widget.montant + widget.bonus).toStringAsFixed(2)}€ crédités'),
           backgroundColor: Colors.green,
         ),
       );
@@ -124,7 +127,8 @@ class _PaiementPortefeuillePageState extends State<PaiementPortefeuillePage> {
     }
   }
 
-  Future<void> _confirmPaymentWithBackend(String paymentIntentId, int clientId) async {
+  Future<void> _confirmPaymentWithBackend(
+      String paymentIntentId, int clientId) async {
     final response = await http.post(
       Uri.parse('$apiBaseUrl/api/payment/wallet/confirm-payment'),
       headers: {'Content-Type': 'application/json'},
@@ -135,7 +139,8 @@ class _PaiementPortefeuillePageState extends State<PaiementPortefeuillePage> {
     );
 
     if (response.statusCode != 200) {
-      throw Exception('Failed to confirm payment with backend: ${response.body}');
+      throw Exception(
+          'Failed to confirm payment with backend: ${response.body}');
     }
   }
 
@@ -233,7 +238,6 @@ class _PaiementPortefeuillePageState extends State<PaiementPortefeuillePage> {
               ),
             ),
             const SizedBox(height: 20),
-            
             if (kIsWeb) ...[
               Card(
                 child: Padding(
@@ -266,9 +270,7 @@ class _PaiementPortefeuillePageState extends State<PaiementPortefeuillePage> {
               const SizedBox(height: 12),
               CardField(controller: _cardController!),
             ],
-            
             const Spacer(),
-            
             ElevatedButton(
               onPressed: _isLoading ? null : _handlePayment,
               style: ElevatedButton.styleFrom(
@@ -276,7 +278,7 @@ class _PaiementPortefeuillePageState extends State<PaiementPortefeuillePage> {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              child: _isLoading 
+              child: _isLoading
                   ? const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -285,7 +287,8 @@ class _PaiementPortefeuillePageState extends State<PaiementPortefeuillePage> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         ),
                         SizedBox(width: 8),
@@ -294,10 +297,10 @@ class _PaiementPortefeuillePageState extends State<PaiementPortefeuillePage> {
                     )
                   : Text(
                       'Payer ${widget.montant.toStringAsFixed(2)}€',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold),
                     ),
             ),
-            
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -324,4 +327,4 @@ class _PaiementPortefeuillePageState extends State<PaiementPortefeuillePage> {
     _cardController?.dispose();
     super.dispose();
   }
-} 
+}

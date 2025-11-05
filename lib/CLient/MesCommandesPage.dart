@@ -1,600 +1,810 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:glitty/CLient/ClientAccueil.dart';
+import 'package:glitty/CLient/MonProfile.dart';
+import 'package:glitty/config/env.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-import 'package:latlong2/latlong.dart';
-import 'package:flutter/foundation.dart';
 import 'dart:convert';
-import 'dart:async';
-
-import 'Paiement.dart';
+import 'ReserverLavagePage.dart';
+import 'MesCommandesPage.dart';
+import 'PortefeuillePage.dart';
+import 'ParrainagePage.dart';
+import '../WelcomePage.dart';
 
 class MesCommandesPage extends StatefulWidget {
+  final Map<String, dynamic>? clientData;
+  final String? token;
   final int clientId;
-  const MesCommandesPage({super.key, required this.clientId});
+
+  const MesCommandesPage(
+      {super.key, required this.clientId, this.clientData, this.token});
 
   @override
   State<MesCommandesPage> createState() => _MesCommandesPageState();
 }
 
-class _MesCommandesPageState extends State<MesCommandesPage> with TickerProviderStateMixin {
-  List<dynamic> _reservations = [];
-  List<dynamic> _washers = [];
-  bool _isLoading = true;
-  bool _isAnimating = false;
-  final Distance _distance = const Distance();
-  Timer? _refreshTimer;
-  DateTime? _lastRefresh;
-
-  // URL dynamique selon la plateforme
-  String get baseUrl {
-    if (kIsWeb) {
-      return 'https://glitty.fr';
-    } else {
-      return 'http://10.0.2.2:3000';
-    }
-  }
-
-  static const Color _darkColor = Color(0xFF022519);
-  static const Color _cardColor = Color(0xFFF4F6F9);
-  static const Color _backgroundColor = Color(0xFFF9FAFB);
+class _MesCommandesPageState extends State<MesCommandesPage> {
+  List<dynamic> commandes = [];
+  bool isLoading = true;
+  String? error;
+  Map<String, dynamic>? statistiques;
+  int totalCommandes = 0;
+  double totalRevenus = 0.0;
 
   @override
   void initState() {
     super.initState();
-    _fetchData();
-    _startAutoRefresh();
+    _loadCommandes();
   }
 
-  @override
-  void dispose() {
-    _refreshTimer?.cancel();
-    super.dispose();
-  }
-
-  void _startAutoRefresh() {
-    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-      if (mounted) {
-        _fetchDataSilently();
-      }
-    });
-  }
-
-  Future<void> _fetchDataSilently() async {
-    // Fetch data without showing loading indicator
+  Future<void> _loadCommandes() async {
     try {
-      final responses = await Future.wait([
-        http.get(Uri.parse('$baseUrl/api/reservations/client/${widget.clientId}')),
-        http.get(Uri.parse('$baseUrl/api/admin/washers')),
-      ]);
-
-      if (responses.every((r) => r.statusCode == 200)) {
-        final reservationsData = jsonDecode(responses[0].body);
-        final washersData = jsonDecode(responses[1].body);
-        
-        final newReservations = reservationsData['data'] ?? [];
-        final newWashers = washersData['washers'] ?? [];
-        
-        // Check if data actually changed
-        final oldReservationsCount = _reservations.length;
-        
-        if (newReservations.length != oldReservationsCount || 
-            newWashers.length != _washers.length) {
-          setState(() {
-            _reservations = newReservations;
-            _washers = newWashers;
-            _lastRefresh = DateTime.now();
-          });
-          
-          // Show notification if new reservations arrived
-          if (newReservations.length > oldReservationsCount) {
-            _showSuccess("🔔 Nouvelle commande reçue !");
-          }
-        } else {
-          // Update last refresh time even if no data changed
-          setState(() {
-            _lastRefresh = DateTime.now();
-          });
-        }
-      }
-    } catch (e) {
-      // Silent fail for background refresh
-      print('Background refresh failed: $e');
-    }
-  }
-
-  Future<void> _fetchData() async {
-    setState(() => _isLoading = true);
-    try {
-      print('📱 Platform: ${kIsWeb ? "Web" : "Mobile"}');
-      print('🌐 Base URL: $baseUrl');
-      print('👤 Client ID: ${widget.clientId}');
-      
-      final responses = await Future.wait([
-        http.get(Uri.parse('$baseUrl/api/reservations/client/${widget.clientId}')),
-        http.get(Uri.parse('$baseUrl/api/admin/washers')),
-      ]);
-
-      print('📊 Reservations response: ${responses[0].statusCode}');
-      print('🔧 Washers response: ${responses[1].statusCode}');
-
-      if (responses.every((r) => r.statusCode == 200)) {
-        final reservationsData = jsonDecode(responses[0].body);
-        final washersData = jsonDecode(responses[1].body);
-        
-        print('📋 Reservations data: $reservationsData');
-        print('👥 Washers data: $washersData');
-        
-        setState(() {
-          _reservations = reservationsData['data'] ?? [];
-          _washers = washersData['washers'] ?? [];
-          _isLoading = false;
-          _lastRefresh = DateTime.now();
-        });
-        
-        print('✅ Data loaded: ${_reservations.length} reservations, ${_washers.length} washers');
-      } else {
-        print('❌ API Error - Reservations: ${responses[0].statusCode}, Washers: ${responses[1].statusCode}');
-        _showError("Erreur lors du chargement des données");
-      }
-    } catch (e) {
-      print('💥 Fetch error: $e');
-      _showError("Erreur réseau: ${e.toString()}");
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  double? _tryParseDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    return double.tryParse(value.toString());
-  }
-
-  List<Map<String, dynamic>> _getSortedWashersForReservation(Map<String, dynamic> reservation) {
-    final resLat = _tryParseDouble(reservation['latitude']);
-    final resLng = _tryParseDouble(reservation['longitude']);
-
-    return _washers.map((washer) {
-      final washerLat = _tryParseDouble(washer['latitude']);
-      final washerLng = _tryParseDouble(washer['longitude']);
-      
-      final dist = (resLat == null || resLng == null || washerLat == null || washerLng == null)
-          ? double.infinity
-          : _distance.as(
-              LengthUnit.Kilometer,
-              LatLng(resLat, resLng),
-              LatLng(washerLat, washerLng),
-            );
-
-      return {
-        'washer': washer,
-        'distance': dist,
-        'isCurrentWasher': false, // Pas applicable pour un client
-      };
-    }).toList()
-      ..sort((a, b) => a['distance'].compareTo(b['distance']));
-  }
-
-  Future<bool> _updateReservationStatus(int reservationId, String status) async {
-    try {
-      print('🔄 Updating reservation $reservationId to status: $status');
-      final response = await http.patch(
-        Uri.parse('$baseUrl/api/reservations/updateStatut/$reservationId'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'statut': status}),
-      );
-
-      print('📡 Update response: ${response.statusCode}');
-      if (response.statusCode == 200) {
-        return true;
-      } else {
-        throw Exception('Failed to update status: ${response.body}');
-      }
-    } catch (e) {
-      print('❌ Update error: $e');
-      throw Exception('Error updating status: ${e.toString()}');
-    }
-  }
-
-  void _showError(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
-  }
-
-  void _showSuccess(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
-
-  Future<void> _handleAcceptReservation(Map<String, dynamic> reservation) async {
-    try {
-      // Vérifier si la réservation n'est pas déjà acceptée
-      if (reservation['statut'] != 'accepté') {
-        await _updateReservationStatus(reservation['id'], 'accepté');
-        _showSuccess("Commande acceptée. Redirection vers paiement...");
-      } else {
-        _showSuccess("Commande déjà acceptée. Redirection vers paiement...");
-      }
-      
-      if (!mounted) return;
-      
-      // Convertir le prix en double, puis multiplier par 100 et convertir en int
-      final prix = double.tryParse(reservation['prix'].toString()) ?? 0.0;
-      
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => PaiementPage(
-            reservationId: reservation['id'],
-            amount: (prix * 100).toInt(),
-          ),
-        ),
-      );
-      
-      await _fetchData(); // Refresh data after returning from payment
-    } catch (e) {
-      _showError("Erreur: ${e.toString()}");
-    }
-  }
-
-  Future<void> _handleRejectReservation(Map<String, dynamic> reservation) async {
-    try {
-      setState(() => _isAnimating = true);
-      await _updateReservationStatus(reservation['id'], 'refusé');
-      _showSuccess("Commande refusée");
-      
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (!mounted) return;
-      
       setState(() {
-        _reservations.remove(reservation);
-        _isAnimating = false;
+        isLoading = true;
+        error = null;
       });
-    } catch (e) {
-      _showError("Erreur: ${e.toString()}");
-      setState(() => _isAnimating = false);
-    }
-  }
 
-  Widget _buildWasherDistanceItem(Map<String, dynamic> washerData) {
-    final washer = washerData['washer'];
-    final dist = washerData['distance'];
-    final isCurrent = washerData['isCurrentWasher'] ?? false;
-
-    return ListTile(
-      leading: Icon(
-        isCurrent ? Icons.person : Icons.person_outline,
-        color: isCurrent ? Colors.teal : Colors.grey,
-      ),
-      title: Text(
-        "${washer['nom']} ${washer['prenom']}",
-        style: TextStyle(
-          fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
-      trailing: Text(
-        dist.isFinite ? "${dist.toStringAsFixed(2)} km" : "N/A",
-        style: const TextStyle(color: Colors.grey),
-      ),
-      contentPadding: EdgeInsets.zero,
-    );
-  }
-
-  Widget _buildReservationCard(Map<String, dynamic> reservation, int index) {
-    final sortedWashers = _getSortedWashersForReservation(reservation);
-
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeInOut,
-      child: _isAnimating && index == 0
-          ? const SizedBox.shrink()
-          : Card(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      reservation['type_lavage'],
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "Prix : ${reservation['prix']} €",
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        Text(
-                          "Date : ${reservation['date_creation'].toString().substring(0, 10)}",
-                          style: const TextStyle(fontSize: 13, color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 24),
-                    const Text(
-                      "Washers disponibles:",
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    ...sortedWashers.map(_buildWasherDistanceItem),
-                    if (index == 0) _buildActionButtons(reservation),
-                  ],
-                ),
-              ),
-            ),
-    );
-  }
-
-  Widget _buildActionButtons(Map<String, dynamic> reservation) {
-    // Ne montrer les boutons que pour les réservations "en cours"
-    if (reservation['statut'] != 'en cours') {
-      // Si la réservation est acceptée ou validée (payée), montrer le bouton de suivi
-      if (reservation['statut'] == 'accepté' || reservation['statut'] == 'validé') {
-        return Padding(
-          padding: const EdgeInsets.only(top: 16),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.green[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green),
-                ),
-                child: Text(
-                  'Statut: ${reservation['statut'] == 'validé' ? 'Payée ✓' : reservation['statut'] + ' ✓'}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF1E3A8A),
-                  minimumSize: const Size(200, 40),
-                ),
-                onPressed: () {
-                  Navigator.pushNamed(context, '/client-suivi-mission');
-                },
-                icon: const Icon(Icons.location_on, color: Colors.white),
-                label: const Text("Suivre ma mission", style: TextStyle(color: Colors.white)),
-              ),
-            ],
-          ),
-        );
-      }
-      
-      return Padding(
-        padding: const EdgeInsets.only(top: 16),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            'Statut: ${reservation['statut']}',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.grey,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ),
+      final response = await http.get(
+        Uri.parse(
+            '${Env.baseUrl}/api/commande/get-commande-client/${widget.clientId}'),
       );
-    }
-    
-    return Padding(
-      padding: const EdgeInsets.only(top: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              minimumSize: const Size(120, 40),
-            ),
-            onPressed: () => _showAcceptDialog(reservation),
-            child: const Text("Accepter & Payer"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              minimumSize: const Size(120, 40),
-            ),
-            onPressed: () => _showRejectDialog(reservation),
-            child: const Text("Refuser"),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Future<void> _showAcceptDialog(Map<String, dynamic> reservation) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Confirmer l'acceptation"),
-        content: const Text("Voulez-vous accepter et procéder au paiement ?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Annuler"),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("Confirmer"),
-          ),
-        ],
-      ),
-    );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
 
-    if (confirmed == true) {
-      await _handleAcceptReservation(reservation);
+        if (data['success'] == true) {
+          setState(() {
+            commandes = data['data']['commandes'];
+            totalCommandes = data['data']['total_commandes'] ?? 0;
+            totalRevenus = (data['data']['total_revenus'] ?? 0).toDouble();
+            statistiques = data['data']['statistiques'];
+          });
+        } else {
+          throw Exception('Erreur lors du chargement des commandes');
+        }
+      } else {
+        throw Exception('Erreur serveur: ${response.statusCode}');
+      }
+    } catch (e) {
+      setState(() {
+        error = 'Erreur de chargement: $e';
+      });
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
     }
   }
 
-  Future<void> _showRejectDialog(Map<String, dynamic> reservation) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Confirmer le refus"),
-        content: const Text("Voulez-vous vraiment refuser cette commande ?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Annuler"),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("Confirmer"),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      await _handleRejectReservation(reservation);
+  // Méthode pour formater le type de lavage
+  String _formatTypeLavage(String type) {
+    switch (type) {
+      case 'lavage_exterieur':
+        return 'Lavage Extérieur';
+      case 'lavage_interieur':
+        return 'Lavage Intérieur';
+      case 'lavage_complet':
+        return 'Lavage Complet';
+      case 'lavage_premium':
+        return 'Lavage Premium';
+      default:
+        return type;
     }
   }
 
-  String _getLastRefreshText() {
-    if (_lastRefresh == null) return "Jamais synchronisé";
-    final now = DateTime.now();
-    final diff = now.difference(_lastRefresh!);
-    
-    if (diff.inSeconds < 60) {
-      return "Synchronisé il y a ${diff.inSeconds}s";
-    } else if (diff.inMinutes < 60) {
-      return "Synchronisé il y a ${diff.inMinutes}m";
-    } else {
-      return "Synchronisé il y a ${diff.inHours}h";
+  // Méthode pour formater le statut
+  String _formatStatut(String statut) {
+    switch (statut) {
+      case 'en_attente':
+        return 'En attente';
+      case 'en_cours':
+        return 'En cours';
+      case 'termine':
+        return 'Terminé';
+      case 'annule':
+        return 'Annulé';
+      default:
+        return statut;
+    }
+  }
+
+  // Méthode pour obtenir la couleur selon le statut
+  Color _getStatutColor(String statut) {
+    switch (statut) {
+      case 'en_attente':
+        return Colors.orange;
+      case 'en_cours':
+        return Colors.blue;
+      case 'termine':
+        return Colors.green;
+      case 'annule':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  // Méthode pour formater la date
+  String _formatDate(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      return '${date.day}/${date.month}/${date.year}';
+    } catch (e) {
+      return dateString;
+    }
+  }
+
+  // Méthode pour formater l'heure
+  String _formatHeure(String heureString) {
+    try {
+      if (heureString.contains(':')) {
+        final parts = heureString.split(':');
+        return '${parts[0]}:${parts[1]}';
+      }
+      return heureString;
+    } catch (e) {
+      return heureString;
+    }
+  }
+
+  // Méthode pour formater le créneau
+  String _formatCreneau(String creneau) {
+    switch (creneau) {
+      case 'matin':
+        return 'Matin';
+      case 'apres_midi':
+        return 'Après-midi';
+      case 'soir':
+        return 'Soir';
+      default:
+        return creneau;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    const dark = Color(0xFF022519);
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Mes Commandes", style: TextStyle(color: Colors.white)),
-        backgroundColor: _darkColor,
-        iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
+      drawer: _buildClientDrawer(context),
+      backgroundColor: dark,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Partie supérieure - Header
+            Container(
+              height: 180,
+              width: double.infinity,
+              color: dark,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                children: [
+                  // Première ligne : icônes menu, logo, notification
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Menu icon qui ouvre le drawer
+                      Builder(
+                        builder: (context) => GestureDetector(
+                          onTap: () => Scaffold.of(context).openDrawer(),
+                          child: Image.asset(
+                            'assets/menu-icone.png',
+                            width: 24,
+                            height: 24,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      Image.asset(
+                        'assets/logo-glitty.png',
+                        width: 149,
+                        height: 69,
+                      ),
+                      Image.asset(
+                        'assets/notification-icone.png',
+                        width: 24,
+                        height: 24,
+                        color: Colors.white,
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Deuxième ligne : barre de recherche + icône salut
+                  Row(
+                    children: [
+                      // Barre de recherche à gauche
+                      Expanded(
+                        child: Container(
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: TextField(
+                            textAlignVertical: TextAlignVertical.center,
+                            decoration: InputDecoration(
+                              hintText: 'Prêt à faire briller sans polluer!',
+                              hintStyle: const TextStyle(
+                                color: Color.fromRGBO(0, 0, 0, 0.5),
+                                fontFamily: "DM Sans",
+                                fontSize: 14,
+                                fontWeight: FontWeight.w400,
+                                height: 19 / 14,
+                                letterSpacing: -0.3,
+                              ),
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.all(10.0),
+                                child: Image.asset(
+                                  'assets/search-icone.png',
+                                  width: 20,
+                                  height: 20,
+                                ),
+                              ),
+                              border: InputBorder.none,
+                              contentPadding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(width: 12),
+
+                      // Icône salut à l'extrême droite
+                      Image.asset(
+                        'assets/salut-icone.png',
+                        width: 40,
+                        height: 40,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.sync, color: Colors.white, size: 16),
-                const SizedBox(width: 4),
-                Text(
-                  "Auto",
-                  style: TextStyle(color: Colors.white, fontSize: 12),
+
+            // Partie inférieure blanche avec borderRadius top
+            Expanded(
+              child: Stack(
+                children: [
+                  // Fond blanc avec borderRadius
+                  Container(
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(40),
+                        topRight: Radius.circular(40),
+                      ),
+                    ),
+                  ),
+
+                  // Contenu scrollable
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        const Text(
+                          "Historique des commandes",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Color(0xFF000000),
+                            fontFamily: "DM Sans",
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            height: 26 / 16,
+                            letterSpacing: -0.356,
+                          ),
+                        ),
+
+                        // Statistiques résumées
+                        if (!isLoading && commandes.isNotEmpty)
+                          _buildStatsCard(),
+
+                        const SizedBox(height: 20),
+
+                        if (isLoading)
+                          const Padding(
+                            padding: EdgeInsets.all(40.0),
+                            child: CircularProgressIndicator(),
+                          )
+                        else if (error != null)
+                          Padding(
+                            padding: const EdgeInsets.all(40.0),
+                            child: Column(
+                              children: [
+                                const Icon(
+                                  Icons.error_outline,
+                                  color: Colors.red,
+                                  size: 48,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  error!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(color: Colors.red),
+                                ),
+                                const SizedBox(height: 16),
+                                ElevatedButton(
+                                  onPressed: _loadCommandes,
+                                  child: const Text('Réessayer'),
+                                ),
+                              ],
+                            ),
+                          )
+                        else if (commandes.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(40.0),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.shopping_bag_outlined,
+                                  color: Colors.grey,
+                                  size: 48,
+                                ),
+                                SizedBox(height: 16),
+                                Text(
+                                  'Aucune commande trouvée',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          Column(
+                            children: commandes
+                                .map((commande) => _buildCommandeItem(commande))
+                                .toList(),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Carte de statistiques
+  Widget _buildStatsCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF022519),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildStatItem('Total', '$totalCommandes', Icons.shopping_bag),
+          _buildStatItem('Revenus', '${totalRevenus.toInt()}€', Icons.euro),
+          _buildStatItem(
+              'En cours',
+              '${statistiques?['par_statut']?['en_attente'] ?? 0}',
+              Icons.access_time),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String title, String value, IconData icon) {
+    return Column(
+      children: [
+        Icon(icon, color: Colors.white, size: 24),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Méthode pour construire un item de commande dynamique
+  Widget _buildCommandeItem(Map<String, dynamic> commande) {
+    final typeLavage = _formatTypeLavage(commande['type_lavage']);
+    final prix = commande['prix'];
+    final date = _formatDate(commande['date']);
+    final statut = _formatStatut(commande['statut']);
+    final color = _getStatutColor(commande['statut']);
+    final creneau = _formatCreneau(commande['creneau']);
+    final heureMission = _formatHeure(commande['heure_mission']);
+    final vehicleInfo = commande['vehicle_info'];
+    final washerInfo = commande['washer_info'];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ],
+                child: Icon(
+                  Icons.local_car_wash,
+                  color: color,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      typeLavage,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "Prix: ${prix}€ • $date",
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    if (vehicleInfo != null)
+                      Text(
+                        "Véhicule: ${vehicleInfo['type']} - ${vehicleInfo['immatriculation']}",
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: color),
+                ),
+                child: Text(
+                  statut,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Informations supplémentaires
+          Row(
+            children: [
+              _buildInfoChip(Icons.access_time, '$creneau • $heureMission'),
+              const SizedBox(width: 8),
+              if (washerInfo != null)
+                _buildInfoChip(Icons.person, washerInfo['nom'] ?? 'Laveur'),
+            ],
+          ),
+
+          if (commande['depart_adresse'] != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Adresse: ${commande['depart_adresse']}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoChip(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Colors.grey[600]),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey[600],
             ),
           ),
         ],
       ),
-      backgroundColor: _backgroundColor,
-      body: Column(
-        children: [
-          // Indicateur de synchronisation
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: Colors.blue[50],
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.wifi, color: Colors.blue, size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      "🔄 Synchronisation automatique toutes les 10s",
+    );
+  }
+
+  // Le reste du code (Drawer et méthodes associées) reste identique...
+  // Méthode pour construire le Drawer (sidebar)
+  Widget _buildClientDrawer(BuildContext context) {
+    const dark = Color(0xFF022519);
+    const accentColor = Color(0xFF4CAF50);
+    final clientName = widget.clientData?['first_name'] ?? 'Client';
+
+    return Drawer(
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [dark, dark.withOpacity(0.8)],
+          ),
+        ),
+        child: Column(
+          children: [
+            // En-tête du Drawer
+            Container(
+              height: 200,
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                    ),
+                    child: CircleAvatar(
+                      radius: 35,
+                      backgroundColor: accentColor,
+                      child: Text(
+                        clientName.isNotEmpty
+                            ? clientName[0].toUpperCase()
+                            : 'C',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  Text(
+                    clientName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: accentColor.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: accentColor.withOpacity(0.3)),
+                    ),
+                    child: const Text(
+                      "● Client",
                       style: TextStyle(
-                        color: Colors.blue[800],
+                        color: Colors.white,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                  ],
-                ),
-                Text(
-                  _getLastRefreshText(),
-                  style: TextStyle(
-                    color: Colors.blue[600],
-                    fontSize: 11,
+                  ),
+                ],
+              ),
+            ),
+            // Contenu du Drawer
+            Expanded(
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(25),
+                    topRight: Radius.circular(25),
                   ),
                 ),
-              ],
-            ),
-          ),
-          
-          // Contenu principal
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _reservations.isEmpty
-                    ? Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
-                          const SizedBox(height: 16),
-                          Text(
-                            "Aucune commande disponible",
-                            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    _buildDrawerItem(
+                      Icons.home_rounded,
+                      "Accueil",
+                      false,
+                      dark,
+                      () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ClientAccueil(
+                              clientData: widget.clientData,
+                              token: widget.token,
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            "Les nouvelles commandes apparaîtront automatiquement",
-                            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                        );
+                      },
+                    ),
+                    _buildDrawerItem(
+                      Icons.shopping_bag_rounded,
+                      "Mes commandes",
+                      true,
+                      dark,
+                      () {
+                        Navigator.pop(context);
+                      },
+                    ),
+                    _buildDrawerItem(
+                      Icons.account_balance_wallet_rounded,
+                      "Portefeuille",
+                      false,
+                      dark,
+                      () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PortefeuillePage(
+                              clientId: widget.clientId,
+                              clientData: widget.clientData,
+                              token: widget.token,
+                            ),
                           ),
-                        ],
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _fetchData,
-                        child: ListView.builder(
-                          itemCount: _reservations.length,
-                          itemBuilder: (context, index) {
-                            return _buildReservationCard(_reservations[index], index);
-                          },
-                        ),
+                        );
+                      },
+                    ),
+                    _buildDrawerItem(
+                      Icons.person_rounded,
+                      "Mon profil",
+                      false,
+                      dark,
+                      () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => MonProfile(
+                              clientData: widget.clientData,
+                              token: widget.token,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDrawerItem(
+                      Icons.people_rounded,
+                      "Parrainage",
+                      false,
+                      dark,
+                      () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ParrainagePage(
+                              clientId: widget.clientId,
+                              clientData: widget.clientData,
+                              token: widget.token,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDrawerItem(
+                      Icons.help_rounded,
+                      "Aide & Support",
+                      false,
+                      dark,
+                      () {
+                        Navigator.pop(context);
+                      },
+                    ),
+                    const Spacer(),
+                    Container(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 10),
+                      child: _buildDrawerItem(
+                        Icons.logout_rounded,
+                        "Déconnexion",
+                        false,
+                        Colors.red,
+                        () async {
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.remove('token');
+                          await prefs.remove('userData');
+
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const WelcomePage()),
+                            (route) => false,
+                          );
+                        },
                       ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Méthode pour construire un item du Drawer
+  Widget _buildDrawerItem(IconData icon, String title, bool isActive,
+      Color color, VoidCallback onTap) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 3),
+      decoration: BoxDecoration(
+        color: isActive ? color.withOpacity(0.1) : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        leading: Icon(
+          icon,
+          color: isActive ? color : Colors.grey[600],
+          size: 24,
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: isActive ? color : Colors.grey[700],
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 16,
           ),
-        ],
+        ),
+        onTap: onTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }

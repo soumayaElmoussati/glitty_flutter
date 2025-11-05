@@ -10,7 +10,8 @@ class WelcomePage extends StatefulWidget {
   State<WelcomePage> createState() => _WelcomePageState();
 }
 
-class _WelcomePageState extends State<WelcomePage> with TickerProviderStateMixin {
+class _WelcomePageState extends State<WelcomePage>
+    with TickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -53,7 +54,7 @@ class _WelcomePageState extends State<WelcomePage> with TickerProviderStateMixin
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFF022519);
     const accentColor = Color(0xFF4CAF50);
-    
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -73,7 +74,7 @@ class _WelcomePageState extends State<WelcomePage> with TickerProviderStateMixin
             child: Column(
               children: [
                 const Spacer(flex: 2),
-                
+
                 // Logo et titre avec animation
                 FadeTransition(
                   opacity: _fadeAnimation,
@@ -122,9 +123,9 @@ class _WelcomePageState extends State<WelcomePage> with TickerProviderStateMixin
                     ],
                   ),
                 ),
-                
+
                 const Spacer(flex: 3),
-                
+
                 // Boutons d'action avec animation
                 SlideTransition(
                   position: _slideAnimation,
@@ -148,14 +149,15 @@ class _WelcomePageState extends State<WelcomePage> with TickerProviderStateMixin
                             );
                           },
                         ),
-                        
+
                         const SizedBox(height: 20),
-                        
+
                         // Bouton Washer
                         _buildActionButton(
                           context: context,
                           title: 'Je veux devenir washer',
-                          subtitle: 'Rejoindre l\'équipe et gagner de l\'argent',
+                          subtitle:
+                              'Rejoindre l\'équipe et gagner de l\'argent',
                           icon: Icons.work,
                           color: Colors.orange,
                           onTap: () {
@@ -166,9 +168,9 @@ class _WelcomePageState extends State<WelcomePage> with TickerProviderStateMixin
                     ),
                   ),
                 ),
-                
+
                 const Spacer(flex: 2),
-                
+
                 // Footer avec accès admin secret
                 FadeTransition(
                   opacity: _fadeAnimation,
@@ -202,7 +204,7 @@ class _WelcomePageState extends State<WelcomePage> with TickerProviderStateMixin
                     ],
                   ),
                 ),
-                
+
                 const SizedBox(height: 32),
               ],
             ),
@@ -298,7 +300,9 @@ class _WelcomePageState extends State<WelcomePage> with TickerProviderStateMixin
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.4,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.6,
+        ),
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.only(
@@ -306,80 +310,84 @@ class _WelcomePageState extends State<WelcomePage> with TickerProviderStateMixin
             topRight: Radius.circular(24),
           ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
+        child: SingleChildScrollView(
+          // Défilement sur tout le contenu
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Handle
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300]!,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              
-              const Text(
-                'Devenir Washer Glitty',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF022519),
+                const SizedBox(height: 20),
+
+                const Text(
+                  'Devenir Washer Glitty',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF022519),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Choisissez votre action :',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
+                const SizedBox(height: 8),
+                Text(
+                  'Choisissez votre action :',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Option 1: Connexion
-              _buildWasherOption(
-                context: context,
-                title: 'Se connecter',
-                subtitle: 'J\'ai déjà un compte washer validé',
-                icon: Icons.login,
-                color: const Color(0xFF4CAF50),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const LoginWasherPage(),
-                    ),
-                  );
-                },
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Option 2: Inscription
-              _buildWasherOption(
-                context: context,
-                title: 'Postuler',
-                subtitle: 'Créer une demande de washer (validation requise)',
-                icon: Icons.person_add,
-                color: Colors.orange,
-                                 onTap: () {
-                   Navigator.pop(context);
-                   Navigator.push(
-                     context,
-                     MaterialPageRoute(
-                       builder: (context) => AddWasherPage(),
-                     ),
-                   );
-                 },
-              ),
-            ],
+                const SizedBox(height: 24),
+
+                // Option 1: Connexion
+                _buildWasherOption(
+                  context: context,
+                  title: 'Se connecter',
+                  subtitle: 'J\'ai déjà un compte washer validé',
+                  icon: Icons.login,
+                  color: const Color(0xFF4CAF50),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const LoginWasherPage(),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                // Option 2: Inscription
+                _buildWasherOption(
+                  context: context,
+                  title: 'Postuler',
+                  subtitle: 'Créer une demande de washer (validation requise)',
+                  icon: Icons.person_add,
+                  color: Colors.orange,
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AddWasherPage(),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -493,4 +501,4 @@ class _WelcomePageState extends State<WelcomePage> with TickerProviderStateMixin
       ),
     );
   }
-} 
+}

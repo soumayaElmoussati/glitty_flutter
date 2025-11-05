@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:glitty/config/env.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
@@ -15,13 +16,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
   List<dynamic> _notifications = [];
   bool _isLoading = true;
 
-  String get baseUrl {
-    if (kIsWeb) {
-      return 'https://glitty.fr';
-    } else {
-      return 'http://10.0.2.2:3000';
-    }
-  }
+  //String get baseUrl {
+  //  if (kIsWeb) {
+  //    return 'https://glitty.fr';
+  //  } else {
+  //    return 'https://glitty.fr';
+  //  }
+  // }
 
   @override
   void initState() {
@@ -32,16 +33,16 @@ class _NotificationsPageState extends State<NotificationsPage> {
   Future<void> _fetchNotifications() async {
     setState(() => _isLoading = true);
     try {
-      final url = '$baseUrl/api/notifications/${widget.washerId}';
-      print('🔍 Récupération notifications depuis: $url'); // DEBUG
-      
+      final url = '${Env.baseUrl}/api/notifications/${widget.washerId}';
+      print('🔍 Récupération notifications depuis: $url');
+
       final response = await http.get(
         Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
       );
 
-      print('📡 Status code: ${response.statusCode}'); // DEBUG
-      print('📡 Response body: ${response.body}'); // DEBUG
+      print('📡 Status code: ${response.statusCode}');
+      print('📡 Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -49,7 +50,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
           _notifications = data['notifications'] ?? [];
           _isLoading = false;
         });
-        print('✅ ${_notifications.length} notifications chargées'); // DEBUG
+        print('✅ ${_notifications.length} notifications chargées');
       } else {
         _showError("Erreur ${response.statusCode}: ${response.body}");
       }
@@ -66,7 +67,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   Future<void> _markAsRead(int notificationId) async {
     try {
       await http.patch(
-        Uri.parse('$baseUrl/api/notifications/$notificationId/read'),
+        Uri.parse('${Env.baseUrl}/api/notifications/$notificationId/read'),
       );
       await _fetchNotifications(); // Rafraîchir
     } catch (e) {
@@ -83,33 +84,108 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   @override
   Widget build(BuildContext context) {
-    const darkColor = Color(0xFF022519);
-    
+    const dark = Color(0xFF022519);
+
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text(
-          'Notifications',
-          style: TextStyle(color: Colors.white),
-        ),
-        backgroundColor: darkColor,
-        iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 0,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _notifications.isEmpty
-              ? _buildEmptyState()
-              : RefreshIndicator(
-                  onRefresh: _fetchNotifications,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _notifications.length,
-                    itemBuilder: (context, index) {
-                      return _buildNotificationCard(_notifications[index]);
-                    },
+      backgroundColor: dark,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header identique au Dashboard
+            Container(
+              height: 180,
+              width: double.infinity,
+              color: dark,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                children: [
+                  // Première ligne : icônes menu, logo, notification
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Menu icon qui ouvre le drawer
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Image.asset(
+                          'assets/menu-icone.png',
+                          width: 24,
+                          height: 24,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Image.asset(
+                        'assets/logo-glitty.png',
+                        width: 149,
+                        height: 69,
+                      ),
+                      // Icône notification désactivée ou invisible
+                      Container(
+                        width: 24,
+                        height: 24,
+                        color: Colors.transparent,
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16), // Espace entre les deux lignes
+
+                  // Deuxième ligne : titre
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 40,
+                          child: const Center(
+                            child: Text(
+                              "Notifications",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontFamily: "DM Sans",
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Contenu des notifications
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(40),
+                    topRight: Radius.circular(40),
                   ),
                 ),
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _notifications.isEmpty
+                        ? _buildEmptyState()
+                        : RefreshIndicator(
+                            onRefresh: _fetchNotifications,
+                            child: ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: _notifications.length,
+                              itemBuilder: (context, index) {
+                                return _buildNotificationCard(
+                                    _notifications[index]);
+                              },
+                            ),
+                          ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -149,8 +225,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
   Widget _buildNotificationCard(Map<String, dynamic> notification) {
     final isRead = notification['is_read'] == true;
     final type = notification['type'] ?? 'info';
-    final createdAt = notification['created_at']?.toString().substring(0, 19) ?? '';
-    
+    final createdAt =
+        notification['created_at']?.toString().substring(0, 19) ?? '';
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: isRead ? 1 : 3,
@@ -186,7 +263,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
                           notification['title'] ?? 'Notification',
                           style: TextStyle(
                             fontSize: 16,
-                            fontWeight: isRead ? FontWeight.w500 : FontWeight.bold,
+                            fontWeight:
+                                isRead ? FontWeight.w500 : FontWeight.bold,
                           ),
                         ),
                         if (!isRead)
@@ -316,4 +394,4 @@ class _NotificationsPageState extends State<NotificationsPage> {
       return dateStr;
     }
   }
-} 
+}

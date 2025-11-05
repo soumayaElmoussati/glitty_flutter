@@ -7,9 +7,10 @@ class WasherEarningsPage extends StatefulWidget {
   _WasherEarningsPageState createState() => _WasherEarningsPageState();
 }
 
-class _WasherEarningsPageState extends State<WasherEarningsPage> with SingleTickerProviderStateMixin {
+class _WasherEarningsPageState extends State<WasherEarningsPage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  
+
   final List<Map<String, dynamic>> _recentEarnings = [
     {
       'date': '15 Déc 2024',
@@ -68,7 +69,7 @@ class _WasherEarningsPageState extends State<WasherEarningsPage> with SingleTick
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1E3A8A),
+      backgroundColor: const Color(0xFF022519),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -173,7 +174,7 @@ class _WasherEarningsPageState extends State<WasherEarningsPage> with SingleTick
               ],
             ),
           ),
-          
+
           // Historique des gains
           Expanded(
             child: Container(
@@ -191,7 +192,7 @@ class _WasherEarningsPageState extends State<WasherEarningsPage> with SingleTick
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF1E3A8A),
+                      color: Color(0xFF022519),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -212,7 +213,8 @@ class _WasherEarningsPageState extends State<WasherEarningsPage> with SingleTick
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     earning['client'],
@@ -227,8 +229,8 @@ class _WasherEarningsPageState extends State<WasherEarningsPage> with SingleTick
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: earning['status'] == 'Payé' 
-                                          ? Colors.green 
+                                      color: earning['status'] == 'Payé'
+                                          ? Colors.green
                                           : Colors.orange,
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -265,10 +267,12 @@ class _WasherEarningsPageState extends State<WasherEarningsPage> with SingleTick
                               ),
                               const SizedBox(height: 10),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Votre gain',
@@ -322,7 +326,7 @@ class _WasherEarningsPageState extends State<WasherEarningsPage> with SingleTick
                         // Retirer les gains
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFF1E3A8A),
+                        backgroundColor: Color(0xFF022519),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -345,7 +349,8 @@ class _WasherEarningsPageState extends State<WasherEarningsPage> with SingleTick
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+      String title, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
@@ -380,4 +385,4 @@ class _WasherEarningsPageState extends State<WasherEarningsPage> with SingleTick
       ),
     );
   }
-} 
+}

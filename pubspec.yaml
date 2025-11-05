@@ -20,6 +20,12 @@ dependencies:
   mime: ^1.0.5
   flutter_stripe: ^10.2.0
   shared_preferences: ^2.2.2
+  google_maps_flutter: ^2.3.0
+  flutter_svg: ^2.0.9
+  geolocator: ^11.0.0
+  url_launcher: ^6.1.11
+  image_picker: ^1.0.4
+
 
 dev_dependencies:
   flutter_test:
@@ -35,6 +41,7 @@ flutter:
   assets:
     - assets/
     - assets/images/
-    - assets/icons/
-    - assets/animations/
-    - assets/translations/
+    - assets/images/onboarding.svg
+    #- assets/icons/
+    #- assets/animations/
+    #- assets/translations/

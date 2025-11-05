@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:glitty/config/env.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -17,14 +18,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
   List<dynamic> _approvedWashers = [];
   List<dynamic> _rejectedWashers = [];
   bool _isLoading = true;
-
-  String get baseUrl {
-    if (kIsWeb) {
-      return 'https://glitty.fr';
-    } else {
-      return 'http://10.0.2.2:3000';
-    }
-  }
 
   @override
   void initState() {
@@ -58,7 +51,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
   Future<void> _fetchPendingWashers() async {
     final response = await http.get(
-      Uri.parse('$baseUrl/api/admin/washers/pending'),
+      Uri.parse('${Env.baseUrl}/api/admin/washers/pending'),
     );
 
     if (response.statusCode == 200) {
@@ -72,14 +65,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
   Future<void> _validateWasher(int washerId, bool approved) async {
     try {
       final response = await http.patch(
-        Uri.parse('$baseUrl/api/admin/washers/validate/$washerId'),
+        Uri.parse('${Env.baseUrl}/api/admin/washers/validate/$washerId'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'approved': approved}),
       );
 
       if (response.statusCode == 200) {
-        _showSuccess(approved 
-            ? "Washer approuvé avec succès !" 
+        _showSuccess(approved
+            ? "Washer approuvé avec succès !"
             : "Washer rejeté avec succès !");
         await _fetchAllWashers();
       } else {
@@ -107,7 +100,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
   @override
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFF022519);
-    
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -115,8 +108,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
           children: [
             Icon(Icons.admin_panel_settings, color: Colors.white),
             SizedBox(width: 8),
-            Text('Dashboard Admin', 
-                  style: TextStyle(color: Colors.white)),
+            Text('Dashboard Admin', style: TextStyle(color: Colors.white)),
           ],
         ),
         backgroundColor: primaryColor,
@@ -164,8 +156,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
   Widget _buildOverviewTab() {
     const primaryColor = Color(0xFF022519);
-    final totalWashers = _pendingWashers.length + _approvedWashers.length + _rejectedWashers.length;
-    
+    final totalWashers = _pendingWashers.length +
+        _approvedWashers.length +
+        _rejectedWashers.length;
+
     return RefreshIndicator(
       onRefresh: _fetchAllWashers,
       child: SingleChildScrollView(
@@ -217,9 +211,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 32),
-            
+
             // Actions rapides
             Text(
               'Actions rapides',
@@ -230,7 +224,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
               ),
             ),
             const SizedBox(height: 16),
-            
+
             if (_pendingWashers.isNotEmpty) ...[
               Container(
                 width: double.infinity,
@@ -245,7 +239,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.notification_important, color: Colors.orange[800]),
+                        Icon(Icons.notification_important,
+                            color: Colors.orange[800]),
                         const SizedBox(width: 8),
                         Text(
                           '${_pendingWashers.length} washers en attente',
@@ -285,7 +280,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
                 ),
                 child: Column(
                   children: [
-                    Icon(Icons.check_circle, color: Colors.green[600], size: 48),
+                    Icon(Icons.check_circle,
+                        color: Colors.green[600], size: 48),
                     const SizedBox(height: 8),
                     Text(
                       'Aucune candidature en attente',
@@ -308,7 +304,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+      String title, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -525,15 +522,15 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Informations
             _buildInfoRow('Email', washer['email']),
             _buildInfoRow('Téléphone', washer['telephone']),
-            _buildInfoRow('Date', 
+            _buildInfoRow('Date',
                 washer['date_creation']?.toString().substring(0, 10) ?? 'N/A'),
-            
+
             // Actions pour les washers en attente
             if (status == 'pending') ...[
               const SizedBox(height: 16),
@@ -630,7 +627,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
               _validateWasher(washer['id'], true);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('Approuver', style: TextStyle(color: Colors.white)),
+            child:
+                const Text('Approuver', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -668,4 +666,4 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
       ),
     );
   }
-} 
+}
