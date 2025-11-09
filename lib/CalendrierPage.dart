@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:glitty/DashboardWasher.dart';
+import 'package:glitty/MesTicketsWasher.dart';
 import 'package:glitty/NotificationsPage.dart';
 import 'package:glitty/WasherEarningsPage.dart';
 import 'package:glitty/WasherSetGPS.dart';
+import 'package:glitty/WelcomePage.dart';
 import 'package:glitty/config/env.dart';
+import 'package:glitty/services/auth_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 class CalendrierPage extends StatefulWidget {
   final int washerId;
+  final Map<String, dynamic>? washerData;
   final String nom;
-  const CalendrierPage({Key? key, required this.washerId, required this.nom})
+  const CalendrierPage(
+      {Key? key, required this.washerId, required this.nom, this.washerData})
       : super(key: key);
 
   @override
@@ -397,18 +402,11 @@ class _CalendrierPageState extends State<CalendrierPage> {
                       () => _navigateToDashboard(context),
                     ),
                     _buildDrawerItem(
-                      Icons.notifications_rounded,
-                      "Notifications",
-                      false,
-                      dark,
-                      () => _navigateToNotifications(context),
-                    ),
-                    _buildDrawerItem(
                       Icons.calendar_month_rounded,
                       "Planning",
                       true,
                       dark,
-                      () => Navigator.pop(context), // Reste sur la même page
+                      () => Navigator.pop(context),
                     ),
                     _buildDrawerItem(
                       Icons.account_balance_wallet_rounded,
@@ -431,6 +429,24 @@ class _CalendrierPageState extends State<CalendrierPage> {
                       dark,
                       () => _navigateToLocation(context),
                     ),
+                    _buildDrawerItem(
+                      Icons.help_rounded,
+                      "Aide & Support",
+                      false,
+                      dark,
+                      () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MesTicketsWasher(
+                              washerId: widget.washerId,
+                              washerData: widget.washerData,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                     const Spacer(),
                     Container(
                       margin: const EdgeInsets.symmetric(
@@ -440,7 +456,55 @@ class _CalendrierPageState extends State<CalendrierPage> {
                         "Déconnexion",
                         false,
                         Colors.red,
-                        () => _logout(context),
+                        () async {
+                          // Afficher une boîte de dialogue de confirmation
+                          final shouldLogout = await showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text("Déconnexion"),
+                                content: const Text(
+                                    "Êtes-vous sûr de vouloir vous déconnecter ?"),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    child: const Text("Annuler"),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(true),
+                                    child: const Text(
+                                      "Déconnexion",
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+
+                          if (shouldLogout == true) {
+                            // Utiliser AuthService pour la déconnexion
+                            await AuthService.logout();
+
+                            // Navigation vers la page d'accueil
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const WelcomePage()),
+                              (route) => false,
+                            );
+
+                            // Optionnel : Afficher un message de confirmation
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Déconnexion réussie"),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        },
                       ),
                     ),
                   ],
@@ -455,12 +519,15 @@ class _CalendrierPageState extends State<CalendrierPage> {
 
   // Méthodes de navigation
   void _navigateToDashboard(BuildContext context) {
-    // Navigator.pushReplacement(
-    //   context,
-    //    MaterialPageRoute(
-    //      builder: (context) => DashboardWasherPage(nom: widget.nom),
-    //    ),
-    //  );
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DashboardWasherPage(
+          nom: widget.nom,
+          washerId: widget.washerId,
+        ),
+      ),
+    );
   }
 
   void _navigateToNotifications(BuildContext context) {

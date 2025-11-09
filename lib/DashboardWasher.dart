@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:glitty/LoginWasherPage.dart';
+import 'package:glitty/WasherNotificationsPage.dart';
 import 'package:glitty/WasherSetGPS.dart';
 import 'package:glitty/WasherSetPassword.dart';
+import 'package:glitty/WelcomePage.dart';
+import 'package:glitty/services/auth_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:glitty/config/env.dart';
 
 // Importez votre page MesTicketsWasher
-import 'package:glitty/MesTicketsWasher.dart'; // Assurez-vous que le chemin est correct
+import 'package:glitty/MesTicketsWasher.dart';
+// AJOUT: Import du service de notifications
+import 'package:glitty/services/notification_service.dart';
 
 class DashboardWasherPage extends StatefulWidget {
   final String nom;
@@ -25,11 +30,93 @@ class DashboardWasherPage extends StatefulWidget {
 class _DashboardWasherPageState extends State<DashboardWasherPage> {
   Map<String, dynamic> _stats = {'total_commandes': 0, 'total_revenus': 0};
   bool _isLoading = true;
+  bool _hasUnreadNotifications = false;
+
+  bool _isOnline = false;
+  bool _isUpdatingStatus = false;
 
   @override
   void initState() {
     super.initState();
     _fetchWasherStats();
+    _checkUnreadNotifications();
+    _fetchWasherStatus();
+  }
+
+  Future<void> _fetchWasherStatus() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${Env.baseUrl}/api/washer/${widget.washerId}/status'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          setState(() {
+            _isOnline = data['data']['is_online'] ?? false;
+          });
+        }
+      }
+    } catch (e) {
+      print('❌ Erreur récupération statut: $e');
+    }
+  }
+
+// NOUVEAU: Basculer le statut en ligne/hors ligne
+  Future<void> _toggleOnlineStatus() async {
+    if (_isUpdatingStatus) return;
+
+    setState(() {
+      _isUpdatingStatus = true;
+    });
+
+    try {
+      final newStatus = !_isOnline;
+      final response = await http.put(
+        Uri.parse('${Env.baseUrl}/api/washer/${widget.washerId}/online-status'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'is_online': newStatus,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          setState(() {
+            _isOnline = newStatus;
+          });
+
+          // Afficher un message de confirmation
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                newStatus
+                    ? '✅ Vous êtes maintenant en ligne'
+                    : '🔴 Vous êtes maintenant hors ligne',
+                style: TextStyle(color: Colors.white),
+              ),
+              backgroundColor: newStatus ? Colors.green : Colors.orange,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        } else {
+          _showError(data['message'] ?? "Erreur lors du changement de statut");
+        }
+      } else {
+        _showError("Erreur serveur: ${response.statusCode}");
+      }
+    } catch (e) {
+      print('❌ Erreur changement statut: $e');
+      _showError("Erreur de connexion");
+    } finally {
+      setState(() {
+        _isUpdatingStatus = false;
+      });
+    }
   }
 
   Future<void> _fetchWasherStats() async {
@@ -60,6 +147,29 @@ class _DashboardWasherPageState extends State<DashboardWasherPage> {
     }
   }
 
+// AJOUT: Méthode pour vérifier les notifications non lues
+  Future<void> _checkUnreadNotifications() async {
+    try {
+      final result =
+          await NotificationService.getWasherNotifications(widget.washerId);
+
+      if (result['success'] == true) {
+        final notifications = result['data']['notifications'] ?? [];
+        // CORRECTION: Vérifier is_read comme number (0) ET comme boolean
+        final hasUnread = notifications.any((notif) {
+          final isRead = notif['is_read'];
+          return isRead == 0 || isRead == false;
+        });
+
+        setState(() {
+          _hasUnreadNotifications = hasUnread;
+        });
+      }
+    } catch (e) {
+      print('❌ Erreur vérification notifications: $e');
+    }
+  }
+
   void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -87,7 +197,6 @@ class _DashboardWasherPageState extends State<DashboardWasherPage> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Column(
                 children: [
-                  // Première ligne : icônes menu, logo, notification
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -107,11 +216,46 @@ class _DashboardWasherPageState extends State<DashboardWasherPage> {
                         width: 149,
                         height: 69,
                       ),
-                      Image.asset(
-                        'assets/notification-icone.png',
-                        width: 24,
-                        height: 24,
-                        color: Colors.white,
+                      // CORRECTION: Icône de notification avec badge
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => WasherNotificationsPage(
+                                washerId: widget.washerId,
+                                washerData: widget.washerData,
+                              ),
+                            ),
+                          ).then((_) {
+                            // Recharger les notifications quand on revient de la page notifications
+                            _checkUnreadNotifications();
+                          });
+                        },
+                        child: Stack(
+                          children: [
+                            Image.asset(
+                              'assets/notification-icone.png',
+                              width: 24,
+                              height: 24,
+                              color: Colors.white,
+                            ),
+                            // Badge pour notifications non lues
+                            if (_hasUnreadNotifications)
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                child: Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -123,7 +267,7 @@ class _DashboardWasherPageState extends State<DashboardWasherPage> {
                           height: 40,
                           child: const Center(
                             child: Text(
-                              "Washer Dashboard",
+                              "Tableau de Bord prestataire de service",
                               style: TextStyle(
                                 color: Colors.white,
                                 fontFamily: "DM Sans",
@@ -226,7 +370,6 @@ class _DashboardWasherPageState extends State<DashboardWasherPage> {
     );
   }
 
-  // MÉTHODE _buildModernDrawer MODIFIÉE avec "Aide & Support"
   Widget _buildModernDrawer(
       BuildContext context, Color dark, Color accentColor) {
     return Drawer(
@@ -317,13 +460,6 @@ class _DashboardWasherPageState extends State<DashboardWasherPage> {
                       () => Navigator.pop(context),
                     ),
                     _buildDrawerItem(
-                      Icons.notifications_rounded,
-                      "Notifications",
-                      false,
-                      dark,
-                      () => Navigator.pushNamed(context, '/notifications'),
-                    ),
-                    _buildDrawerItem(
                       Icons.calendar_month_rounded,
                       "Planning",
                       false,
@@ -359,14 +495,13 @@ class _DashboardWasherPageState extends State<DashboardWasherPage> {
                                     washerId: widget.washerId,
                                   ))),
                     ),
-                    // NOUVEL ITEM : Aide & Support
                     _buildDrawerItem(
                       Icons.help_rounded,
                       "Aide & Support",
                       false,
                       dark,
                       () {
-                        Navigator.pop(context); // Fermer le drawer
+                        Navigator.pop(context);
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -387,10 +522,55 @@ class _DashboardWasherPageState extends State<DashboardWasherPage> {
                         "Déconnexion",
                         false,
                         Colors.red,
-                        () => Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => LoginWasherPage())),
+                        () async {
+                          // Afficher une boîte de dialogue de confirmation
+                          final shouldLogout = await showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text("Déconnexion"),
+                                content: const Text(
+                                    "Êtes-vous sûr de vouloir vous déconnecter ?"),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    child: const Text("Annuler"),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(true),
+                                    child: const Text(
+                                      "Déconnexion",
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+
+                          if (shouldLogout == true) {
+                            // Utiliser AuthService pour la déconnexion
+                            await AuthService.logout();
+
+                            // Navigation vers la page d'accueil
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const WelcomePage()),
+                              (route) => false,
+                            );
+
+                            // Optionnel : Afficher un message de confirmation
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Déconnexion réussie"),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        },
                       ),
                     ),
                   ],
@@ -473,19 +653,67 @@ class _DashboardWasherPageState extends State<DashboardWasherPage> {
                   ),
                 ),
                 const SizedBox(height: 15),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4CAF50).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text(
-                    "🟢 En ligne",
-                    style: TextStyle(
-                      color: Color(0xFF4CAF50),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
+
+                // NOUVEAU: Toggle statut en ligne avec indicateur de chargement
+                GestureDetector(
+                  onTap: _isUpdatingStatus ? null : _toggleOnlineStatus,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _isOnline
+                          ? Color(0xFF4CAF50).withOpacity(0.1)
+                          : Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: _isOnline ? Color(0xFF4CAF50) : Colors.orange,
+                          width: 1),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_isUpdatingStatus)
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                _isOnline ? Color(0xFF4CAF50) : Colors.orange,
+                              ),
+                            ),
+                          )
+                        else
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color:
+                                  _isOnline ? Color(0xFF4CAF50) : Colors.orange,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _isUpdatingStatus
+                              ? "Chargement..."
+                              : _isOnline
+                                  ? "🟢 En ligne"
+                                  : "🔴 Hors ligne",
+                          style: TextStyle(
+                            color:
+                                _isOnline ? Color(0xFF4CAF50) : Colors.orange,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          _isOnline ? Icons.toggle_on : Icons.toggle_off,
+                          color: _isOnline ? Color(0xFF4CAF50) : Colors.orange,
+                          size: 20,
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -567,7 +795,6 @@ class _DashboardWasherPageState extends State<DashboardWasherPage> {
     );
   }
 
-  // ... Les autres méthodes (_buildQuickActionsSection, _buildActionCard, etc.) restent inchangées
   Widget _buildQuickActionsSection(BuildContext context, Color dark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,6 +1,17 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:glitty/CLient/ChoisirCreneau.dart';
+import 'package:glitty/CLient/ClientAccueil.dart';
+import 'package:glitty/CLient/MesCommandesPage.dart';
+import 'package:glitty/CLient/MesTickets.dart';
+import 'package:glitty/CLient/MonProfile.dart';
+import 'package:glitty/CLient/ParrainagePage.dart';
+import 'package:glitty/CLient/PortefeuillePage.dart';
 import 'package:glitty/CLient/RecapCommande.dart';
+import 'package:glitty/WelcomePage.dart';
+import 'package:glitty/services/auth_service.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -9,12 +20,13 @@ import 'package:geolocator/geolocator.dart';
 class LocationPage extends StatefulWidget {
   final int clientId;
   final String typeLavage;
-
   final Map<String, dynamic>? vehicleData;
   final Map<String, dynamic>? clientData;
-  final List<dynamic>? photos;
+  final List<File>? photos;
   final String date;
   final String creneau;
+  final String? heure;
+  final double prix;
 
   const LocationPage({
     super.key,
@@ -25,6 +37,8 @@ class LocationPage extends StatefulWidget {
     this.photos,
     required this.date,
     required this.creneau,
+    this.heure,
+    required this.prix,
   });
 
   @override
@@ -35,12 +49,14 @@ class _LocationPageState extends State<LocationPage> {
   bool _useGlittyBalance = false;
   bool _showLocationModal = false;
   final TextEditingController _locationController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   LatLng _currentLocation = LatLng(46.603354, 1.888334);
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearching = false;
   bool _isLoadingLocation = false;
   bool _isLoadingAddress = false;
   MapController _mapController = MapController();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -176,7 +192,7 @@ class _LocationPageState extends State<LocationPage> {
     try {
       final response = await http.get(
         Uri.parse(
-          'https://nominatim.openstreetmap.org/search?format=json&q=${Uri.encodeQueryComponent(query)}&limit=5&addressdetails=1&countrycodes=fr',
+          'https://nominatim.openstreetmap.org/search?format=json&q=${Uri.encodeQueryComponent(query)}&limit=10&addressdetails=1&countrycodes=fr&viewbox=-5.0,41.0,9.0,51.0&bounded=1',
         ),
         headers: {
           'User-Agent': 'GlittyApp/1.0 (contact@glitty.com)',
@@ -192,6 +208,8 @@ class _LocationPageState extends State<LocationPage> {
               'display_name': item['display_name'],
               'lat': double.parse(item['lat']),
               'lon': double.parse(item['lon']),
+              'type': item['type'],
+              'importance': item['importance'] ?? 0.0,
             };
           }).toList();
         });
@@ -226,6 +244,7 @@ class _LocationPageState extends State<LocationPage> {
     setState(() {
       _showLocationModal = true;
       _searchResults = [];
+      _searchController.clear();
     });
     showModalBottomSheet(
       context: context,
@@ -248,7 +267,6 @@ class _LocationPageState extends State<LocationPage> {
     _mapController.move(_currentLocation, 6.0);
   }
 
-  // MODIFIÉ : Navigation vers RecapCommandePage avec tous les paramètres
   void _navigateToRecapCommande() {
     Navigator.push(
       context,
@@ -265,8 +283,295 @@ class _LocationPageState extends State<LocationPage> {
           photos: widget.photos,
           date: widget.date,
           creneau: widget.creneau,
+          heure: widget.heure,
+          prix: widget.prix,
           clientData: widget.clientData,
         ),
+      ),
+    );
+  }
+
+  // Méthode pour construire le Drawer
+  Widget _buildClientDrawer(BuildContext context) {
+    const dark = Color(0xFF022519);
+    const accentColor = Color(0xFF4CAF50);
+    final clientName = widget.clientData?['first_name'] ?? 'Client';
+
+    return Drawer(
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [dark, dark.withOpacity(0.8)],
+          ),
+        ),
+        child: Column(
+          children: [
+            Container(
+              height: 200,
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                    ),
+                    child: CircleAvatar(
+                      radius: 35,
+                      backgroundColor: accentColor,
+                      child: Text(
+                        clientName.isNotEmpty
+                            ? clientName[0].toUpperCase()
+                            : 'C',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  Text(
+                    clientName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: accentColor.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: accentColor.withOpacity(0.3)),
+                    ),
+                    child: const Text(
+                      "● Client",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(25),
+                    topRight: Radius.circular(25),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    _buildDrawerItem(
+                      Icons.home_rounded,
+                      "Accueil",
+                      false,
+                      dark,
+                      () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ClientAccueil(
+                              clientData: widget.clientData,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDrawerItem(
+                      Icons.shopping_bag_rounded,
+                      "Mes commandes",
+                      false,
+                      dark,
+                      () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MesCommandesPage(
+                              clientId: widget.clientData?['id'] ?? 1,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDrawerItem(
+                      Icons.account_balance_wallet_rounded,
+                      "Portefeuille",
+                      false,
+                      dark,
+                      () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PortefeuillePage(
+                              clientId: widget.clientData?['id'] ?? 1,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDrawerItem(
+                      Icons.person_rounded,
+                      "Mon profil",
+                      false,
+                      dark,
+                      () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MonProfile(
+                              clientData: widget.clientData,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDrawerItem(
+                      Icons.people_rounded,
+                      "Parrainage",
+                      false,
+                      dark,
+                      () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => ParrainagePage(
+                                  clientId: widget.clientData?['id'] ?? 1)),
+                        );
+                      },
+                    ),
+                    _buildDrawerItem(
+                      Icons.help_rounded,
+                      "Aide & Support",
+                      false,
+                      dark,
+                      () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MesTicketsClient(
+                              clientId: widget.clientData?['id'],
+                              clientData: widget.clientData,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const Spacer(),
+                    Container(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 10),
+                      child: _buildDrawerItem(
+                        Icons.logout_rounded,
+                        "Déconnexion",
+                        false,
+                        Colors.red,
+                        () async {
+                          // Afficher une boîte de dialogue de confirmation
+                          final shouldLogout = await showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text("Déconnexion"),
+                                content: const Text(
+                                    "Êtes-vous sûr de vouloir vous déconnecter ?"),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    child: const Text("Annuler"),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(true),
+                                    child: const Text(
+                                      "Déconnexion",
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+
+                          if (shouldLogout == true) {
+                            // Utiliser AuthService pour la déconnexion
+                            await AuthService.logout();
+
+                            // Navigation vers la page d'accueil
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const WelcomePage()),
+                              (route) => false,
+                            );
+
+                            // Optionnel : Afficher un message de confirmation
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Déconnexion réussie"),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Méthode pour construire un item du Drawer
+  Widget _buildDrawerItem(IconData icon, String title, bool isActive,
+      Color color, VoidCallback onTap) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 3),
+      decoration: BoxDecoration(
+        color: isActive ? color.withOpacity(0.1) : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        leading: Icon(
+          icon,
+          color: isActive ? color : Colors.grey[600],
+          size: 24,
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: isActive ? color : Colors.grey[700],
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 16,
+          ),
+        ),
+        onTap: onTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -276,6 +581,8 @@ class _LocationPageState extends State<LocationPage> {
     const dark = Color(0xFF022519);
 
     return Scaffold(
+      key: _scaffoldKey, // CLÉ AJOUTÉE POUR CONTRÔLER LE DRAWER
+      drawer: _buildClientDrawer(context), // DRAWER AJOUTÉ ICI
       backgroundColor: dark,
       body: Stack(
         children: [
@@ -327,8 +634,6 @@ class _LocationPageState extends State<LocationPage> {
               ),
             ],
           ),
-
-          // Indicateur de chargement principal
           if (_isLoadingLocation)
             const Center(
               child: Column(
@@ -349,7 +654,6 @@ class _LocationPageState extends State<LocationPage> {
                 ],
               ),
             ),
-
           SafeArea(
             child: Column(
               children: [
@@ -364,11 +668,18 @@ class _LocationPageState extends State<LocationPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Image.asset(
-                            'assets/menu-icone.png',
-                            width: 24,
-                            height: 24,
-                            color: Colors.white,
+                          // BOUTON MENU CORRIGÉ POUR OUVRIR LE DRAWER
+                          Builder(
+                            builder: (context) => GestureDetector(
+                              onTap: () =>
+                                  _scaffoldKey.currentState?.openDrawer(),
+                              child: Image.asset(
+                                'assets/menu-icone.png',
+                                width: 24,
+                                height: 24,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
                           Image.asset(
                             'assets/logo-glitty.png',
@@ -386,47 +697,76 @@ class _LocationPageState extends State<LocationPage> {
                       const SizedBox(height: 16),
                       Row(
                         children: [
-                          Expanded(
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ChoisirCreneau(
+                                    clientId: widget.clientId,
+                                    typeLavage: widget.typeLavage,
+                                    vehicleData: widget.vehicleData,
+                                    clientData: widget.clientData,
+                                    photos: widget.photos,
+                                    prix: widget.prix,
+                                  ),
+                                ),
+                              );
+                            },
                             child: Container(
+                              width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
+                                shape: BoxShape.circle,
+                                color: Colors.white.withOpacity(0.9),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
-                              child: TextField(
-                                textAlignVertical: TextAlignVertical.center,
-                                decoration: InputDecoration(
-                                  hintText:
-                                      'Prêt à faire briller sans polluer!',
-                                  hintStyle: const TextStyle(
-                                    color: Color.fromRGBO(0, 0, 0, 0.5),
-                                    fontFamily: "DM Sans",
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w400,
-                                    height: 19 / 14,
-                                    letterSpacing: -0.3,
-                                  ),
-                                  prefixIcon: Padding(
-                                    padding: const EdgeInsets.all(10.0),
-                                    child: Image.asset(
-                                      'assets/search-icone.png',
-                                      width: 20,
-                                      height: 20,
-                                    ),
-                                  ),
-                                  border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 12),
-                                  isDense: true,
-                                ),
+                              child: const Icon(
+                                Icons.arrow_back_rounded,
+                                color: Color(0xFF022519),
+                                size: 24,
                               ),
                             ),
                           ),
                           const SizedBox(width: 12),
-                          Image.asset(
-                            'assets/salut-icone.png',
-                            width: 40,
-                            height: 40,
+                          Expanded(
+                            flex: 3,
+                            child: GestureDetector(
+                              onTap: _showLocationBottomSheet,
+                              child: Container(
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const SizedBox(width: 12),
+                                    const Icon(
+                                      Icons.search,
+                                      color: Colors.grey,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Rechercher une adresse...',
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -436,8 +776,6 @@ class _LocationPageState extends State<LocationPage> {
               ],
             ),
           ),
-
-          // Afficher les informations de la commande
           Positioned(
             top: 200,
             left: 20,
@@ -487,11 +825,25 @@ class _LocationPageState extends State<LocationPage> {
                       color: Colors.grey,
                     ),
                   ),
+                  if (widget.heure != null)
+                    Text(
+                      "Heure: ${widget.heure}",
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  Text(
+                    "Prix: ${widget.prix.toStringAsFixed(2)}€",
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey,
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
-
           Positioned(
             bottom: 200,
             right: 20,
@@ -521,7 +873,6 @@ class _LocationPageState extends State<LocationPage> {
               ],
             ),
           ),
-
           Positioned(
             bottom: 0,
             left: 0,
@@ -540,9 +891,20 @@ class _LocationPageState extends State<LocationPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildNavIcon(Icons.home, 'Home'),
-                      _buildNavIcon(Icons.search, 'Rechercher'),
-                      _buildNavIcon(Icons.add, 'Ajouter'),
+                      _buildNavIcon(Icons.home_filled, 'Accueil', () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ClientAccueil(
+                              clientData: widget.clientData,
+                            ),
+                          ),
+                        );
+                      }),
+                      _buildNavIcon(
+                          Icons.search, 'Rechercher', _showLocationBottomSheet),
+                      _buildNavIcon(Icons.location_on, 'Ma position',
+                          _getCurrentLocation),
                     ],
                   ),
                   const SizedBox(height: 20),
@@ -570,7 +932,7 @@ class _LocationPageState extends State<LocationPage> {
                                 )
                               else if (_locationController.text.isEmpty)
                                 const Text(
-                                  'Cliquez sur la carte pour sélectionner une adresse...',
+                                  'Cliquez sur la carte ou recherchez une adresse...',
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
@@ -645,29 +1007,40 @@ class _LocationPageState extends State<LocationPage> {
     );
   }
 
-  Widget _buildNavIcon(IconData icon, String label) {
-    return Column(
-      children: [
-        Icon(
-          icon,
-          color: Colors.white,
-          size: 30,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 12,
+  Widget _buildNavIcon(IconData icon, String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: 24,
+            ),
           ),
-        ),
-      ],
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildLocationModal() {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.6,
+      height: MediaQuery.of(context).size.height * 0.8,
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -683,7 +1056,7 @@ class _LocationPageState extends State<LocationPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Choisir la localisation',
+                'Rechercher une adresse',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -704,21 +1077,22 @@ class _LocationPageState extends State<LocationPage> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: TextField(
-              controller: _locationController,
+              controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Rechercher une adresse en France...',
+                hintText: 'Entrez une adresse, une ville, un lieu...',
                 border: InputBorder.none,
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: _isSearching
-                    ? const Padding(
-                        padding: EdgeInsets.all(8.0),
-                        child: SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchResults = [];
+                          });
+                        },
                       )
                     : null,
               ),
@@ -735,11 +1109,27 @@ class _LocationPageState extends State<LocationPage> {
               },
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 10),
+          if (_isSearching)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 10),
+                  Text('Recherche en cours...'),
+                ],
+              ),
+            ),
+          const SizedBox(height: 10),
           Expanded(
             child: _searchResults.isNotEmpty
                 ? _buildSearchResults()
-                : _buildDefaultSuggestions(),
+                : _buildEmptyState(),
           ),
         ],
       ),
@@ -751,61 +1141,93 @@ class _LocationPageState extends State<LocationPage> {
       itemCount: _searchResults.length,
       itemBuilder: (context, index) {
         final result = _searchResults[index];
-        return ListTile(
-          leading: const Icon(Icons.location_on, color: Color(0xFF022519)),
-          title: Text(
-            result['display_name'],
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 14),
-          ),
-          onTap: () {
-            _updateMapLocation(
-              LatLng(result['lat'], result['lon']),
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+          elevation: 1,
+          child: ListTile(
+            leading: Icon(
+              _getLocationIcon(result['type']),
+              color: const Color(0xFF022519),
+            ),
+            title: Text(
               result['display_name'],
-            );
-          },
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            subtitle: Text(
+              '${result['lat'].toStringAsFixed(6)}, ${result['lon'].toStringAsFixed(6)}',
+              style: const TextStyle(fontSize: 10, color: Colors.grey),
+            ),
+            onTap: () {
+              _updateMapLocation(
+                LatLng(result['lat'], result['lon']),
+                result['display_name'],
+              );
+            },
+          ),
         );
       },
     );
   }
 
-  Widget _buildDefaultSuggestions() {
-    final frenchCities = [
-      {'name': '📍 Paris, France', 'lat': 48.8566, 'lon': 2.3522},
-      {'name': '📍 Lyon, France', 'lat': 45.7640, 'lon': 4.8357},
-      {'name': '📍 Marseille, France', 'lat': 43.2965, 'lon': 5.3698},
-      {'name': '📍 Toulouse, France', 'lat': 43.6047, 'lon': 1.4442},
-      {'name': '📍 Nice, France', 'lat': 43.7102, 'lon': 7.2620},
-      {'name': '📍 Bordeaux, France', 'lat': 44.8378, 'lon': -0.5792},
-    ];
-
-    return ListView(
-      children: frenchCities.map((city) {
-        return _buildLocationSuggestion(
-          city['name'] as String,
-          Icons.location_city,
-          onTap: () {
-            _updateMapLocation(
-              LatLng(city['lat'] as double, city['lon'] as double),
-              city['name'] as String,
-            );
-          },
-        );
-      }).toList(),
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.search_off,
+            size: 64,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _searchController.text.isEmpty
+                ? 'Entrez une adresse pour commencer la recherche'
+                : 'Aucun résultat trouvé pour "${_searchController.text}"',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (_searchController.text.isEmpty)
+            Text(
+              'Exemples: "Paris", "12 rue de la Paix Lyon", "Eiffel Tower"',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+            ),
+        ],
+      ),
     );
   }
 
-  Widget _buildLocationSuggestion(String text, IconData icon,
-      {VoidCallback? onTap}) {
-    return ListTile(
-      leading: Icon(icon, color: const Color(0xFF022519)),
-      title: Text(text),
-      onTap: onTap,
-    );
+  IconData _getLocationIcon(String type) {
+    switch (type) {
+      case 'city':
+      case 'town':
+      case 'village':
+        return Icons.location_city;
+      case 'street':
+      case 'road':
+        return Icons.signpost;
+      case 'house':
+      case 'building':
+        return Icons.home;
+      case 'amenity':
+        return Icons.local_activity;
+      case 'natural':
+        return Icons.landscape;
+      default:
+        return Icons.place;
+    }
   }
 
-  // Fonctions utilitaires
   String _getLavageTitle(String typeLavage) {
     switch (typeLavage) {
       case 'lavage_interieur':
@@ -858,6 +1280,7 @@ class _LocationPageState extends State<LocationPage> {
   @override
   void dispose() {
     _locationController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 }

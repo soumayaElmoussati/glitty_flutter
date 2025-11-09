@@ -3,6 +3,8 @@ import 'package:glitty/DashboardWasher.dart';
 import 'package:glitty/LoginWasherPage.dart';
 import 'package:glitty/WasherSetGPS.dart';
 import 'package:glitty/WasherSetPassword.dart';
+import 'package:glitty/WelcomePage.dart';
+import 'package:glitty/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -473,13 +475,6 @@ class _MesTicketsWasherState extends State<MesTicketsWasher> {
                       },
                     ),
                     _buildDrawerItem(
-                      Icons.notifications_rounded,
-                      "Notifications",
-                      false,
-                      dark,
-                      () => Navigator.pushNamed(context, '/notifications'),
-                    ),
-                    _buildDrawerItem(
                       Icons.calendar_month_rounded,
                       "Planning",
                       false,
@@ -542,17 +537,53 @@ class _MesTicketsWasherState extends State<MesTicketsWasher> {
                         false,
                         Colors.red,
                         () async {
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.remove('washer_token');
-                          await prefs.remove('washer_id');
-                          await prefs.remove('washer_email');
-
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => LoginWasherPage()),
-                            (route) => false,
+                          // Afficher une boîte de dialogue de confirmation
+                          final shouldLogout = await showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text("Déconnexion"),
+                                content: const Text(
+                                    "Êtes-vous sûr de vouloir vous déconnecter ?"),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    child: const Text("Annuler"),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(true),
+                                    child: const Text(
+                                      "Déconnexion",
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           );
+
+                          if (shouldLogout == true) {
+                            // Utiliser AuthService pour la déconnexion
+                            await AuthService.logout();
+
+                            // Navigation vers la page d'accueil
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const WelcomePage()),
+                              (route) => false,
+                            );
+
+                            // Optionnel : Afficher un message de confirmation
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Déconnexion réussie"),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
                         },
                       ),
                     ),
@@ -1133,13 +1164,6 @@ class _HistoriqueTicketsWasherPageState
                           ),
                         );
                       },
-                    ),
-                    _buildDrawerItem(
-                      Icons.notifications_rounded,
-                      "Notifications",
-                      false,
-                      dark,
-                      () => Navigator.pushNamed(context, '/notifications'),
                     ),
                     _buildDrawerItem(
                       Icons.calendar_month_rounded,

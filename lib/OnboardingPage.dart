@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:glitty/CLient/ClientAccueil.dart';
 import 'package:glitty/CLient/LoginPage.dart';
 import 'package:glitty/LoginWasherPage.dart';
 import 'package:glitty/WelcomePage.dart';
+import 'package:glitty/services/auth_service.dart';
+import 'package:glitty/DashboardWasher.dart';
 
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({super.key});
@@ -14,32 +17,111 @@ class OnboardingPage extends StatefulWidget {
 class _OnboardingPageState extends State<OnboardingPage> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
-  late Timer _timer;
+  Timer? _timer; // Rend le timer nullable
+  bool _isCheckingAuth = true;
 
   @override
   void initState() {
     super.initState();
+    _checkAuthenticationStatus();
+  }
 
+  Future<void> _checkAuthenticationStatus() async {
+    print('🔍 Vérification du statut d\'authentification...');
+
+    try {
+      final loginStatus = await AuthService.checkLoginStatus();
+      print('📊 Résultat de checkLoginStatus: $loginStatus');
+
+      if (loginStatus['isLoggedIn'] == true && mounted) {
+        final userType = loginStatus['userType'];
+        final userData = loginStatus['userData'];
+        final token = loginStatus['token'];
+
+        print('✅ Utilisateur déjà connecté: $userType');
+        print('📋 Données utilisateur: $userData');
+
+        if (userType == 'client') {
+          _cancelTimer();
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ClientAccueil(
+                  clientData: userData,
+                  token: token,
+                ),
+              ),
+            );
+          }
+          return;
+        } else if (userType == 'washer') {
+          _cancelTimer();
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => DashboardWasherPage(
+                  nom: userData['first_name'] ?? 'Prestataire',
+                  washerId: userData['id'],
+                  washerData: userData,
+                ),
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      print('🔐 Aucun utilisateur connecté, démarrage de l\'onboarding');
+
+      // Si aucun utilisateur connecté, démarrer le timer de l'onboarding
+      if (mounted) {
+        setState(() {
+          _isCheckingAuth = false;
+        });
+      }
+
+      _startOnboardingTimer();
+    } catch (e) {
+      print('❌ Erreur lors de la vérification d\'authentification: $e');
+      // En cas d'erreur, continuer avec l'onboarding
+      if (mounted) {
+        setState(() {
+          _isCheckingAuth = false;
+        });
+      }
+      _startOnboardingTimer();
+    }
+  }
+
+  void _startOnboardingTimer() {
     _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
       if (_currentPage < 2) {
-        _currentPage++;
+        setState(() {
+          _currentPage++;
+        });
         _pageController.animateToPage(
           _currentPage,
           duration: const Duration(milliseconds: 500),
           curve: Curves.easeInOut,
         );
       } else {
-        _timer.cancel();
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const WelcomePage()),
-        );
+        _cancelTimer();
+        // Ne pas rediriger automatiquement, attendre l'action de l'utilisateur
       }
     });
   }
 
+  void _cancelTimer() {
+    if (_timer != null && _timer!.isActive) {
+      _timer!.cancel();
+    }
+  }
+
   // Fonction pour passer à la page suivante
   void _goToNextPage() {
+    _cancelTimer(); // Arrêter le timer automatique
     if (_currentPage < 2) {
       setState(() {
         _currentPage++;
@@ -52,18 +134,18 @@ class _OnboardingPageState extends State<OnboardingPage> {
     }
   }
 
-  // Fonction pour aller à la page Welcome en tant que client
-  void _goToWelcomeAsClient() {
-    _timer.cancel();
+  // Fonction pour aller à la page Login en tant que client
+  void _goToLoginAsClient() {
+    _cancelTimer();
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const LoginPage()),
     );
   }
 
-  // Fonction pour aller à la page Welcome en tant que washer
-  void _goToWelcomeAsWasher() {
-    _timer.cancel();
+  // Fonction pour aller à la page Login en tant que washer
+  void _goToLoginAsWasher() {
+    _cancelTimer();
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const LoginWasherPage()),
@@ -72,15 +154,40 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   @override
   void dispose() {
-    _timer.cancel();
+    _cancelTimer(); // Utiliser la méthode sécurisée
     _pageController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Afficher un écran de chargement pendant la vérification de l'authentification
+    if (_isCheckingAuth) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF022519)),
+              ),
+              SizedBox(height: 20),
+              Text(
+                'Vérification...',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Color(0xFF022519),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final double screenHeight = MediaQuery.of(context).size.height;
-    final double halfHeight = screenHeight * 0.5; // 50% de la hauteur écran
+    final double halfHeight = screenHeight * 0.5;
 
     return Scaffold(
       body: PageView.builder(
@@ -256,7 +363,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                               ),
                               padding: const EdgeInsets.symmetric(vertical: 16),
                             ),
-                            onPressed: _goToWelcomeAsClient,
+                            onPressed: _goToLoginAsClient,
                             child: const Text(
                               "Êtes-vous client ?",
                               style: TextStyle(
@@ -278,7 +385,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                               ),
                               padding: const EdgeInsets.symmetric(vertical: 16),
                             ),
-                            onPressed: _goToWelcomeAsWasher,
+                            onPressed: _goToLoginAsWasher,
                             child: const Text(
                               "Êtes-vous un Washer ?",
                               style: TextStyle(

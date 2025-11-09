@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:glitty/WelcomePage.dart';
 import 'package:glitty/config/env.dart';
+import 'package:glitty/services/auth_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -45,17 +46,26 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _checkIfLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('user_token');
-    final clientData = prefs.getString('client_data');
+    final loginStatus = await AuthService.checkLoginStatus();
 
-    if (token != null && clientData != null) {
-      if (mounted) {
+    if (loginStatus['isLoggedIn'] == true && mounted) {
+      final userType = loginStatus['userType'];
+      final userData = loginStatus['userData'];
+      final token = loginStatus['token'];
+
+      if (userType == 'client') {
+        print('🔄 Client already logged in, redirecting...');
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const ClientAccueil()),
+          MaterialPageRoute(
+            builder: (context) => ClientAccueil(
+              clientData: userData,
+              token: token,
+            ),
+          ),
         );
       }
+      // Si un washer est connecté, on le laisse sur cette page
     }
   }
 
@@ -80,18 +90,14 @@ class _LoginPageState extends State<LoginPage> {
 
       if (response.statusCode == 200 && data['success']) {
         if (mounted) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setInt('client_id', data['client']['id']);
-          await prefs.setString('client_email', data['client']['email']);
-          await prefs.setString('client_nom', data['client']['last_name']);
-          await prefs.setString('client_prenom', data['client']['first_name']);
-          await prefs.setString('token', data['token']);
+          // Sauvegarder avec le service d'authentification
+          await AuthService.saveClientLogin(data['client'], data['token']);
 
-          print('✅ Client data saved: ID=${data['client']['id']}');
+          print('✅ Client login successful - ID: ${data['client']['id']}');
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(data['message']),
+              content: Text(data['message'] ?? 'Connexion réussie'),
               backgroundColor: Colors.green,
             ),
           );
@@ -120,7 +126,7 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur: $e'),
+            content: Text('Erreur réseau: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -146,8 +152,8 @@ class _LoginPageState extends State<LoginPage> {
         Uri.parse('${Env.baseUrl}/api/client/register-client'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'first_name': _nomController.text.trim(),
-          'last_name': _prenomController.text.trim(),
+          'first_name': _prenomController.text.trim(),
+          'last_name': _nomController.text.trim(),
           'email': _emailController.text.trim(),
           'phone': _telephoneController.text.trim(),
           'password': _passwordController.text,
@@ -161,18 +167,13 @@ class _LoginPageState extends State<LoginPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(data['message']),
+              content: Text(data['message'] ?? 'Inscription réussie'),
               backgroundColor: Colors.green,
             ),
           );
 
-          setState(() {
-            _isLogin = true;
-            _nomController.clear();
-            _prenomController.clear();
-            _telephoneController.clear();
-            _addressController.clear();
-          });
+          // Auto-login après inscription
+          await _performAutoLoginAfterRegister();
         }
       } else {
         if (mounted) {
@@ -202,6 +203,41 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<void> _performAutoLoginAfterRegister() async {
+    try {
+      final response = await http.post(
+        Uri.parse('${Env.baseUrl}/api/client/login-client'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'email': _emailController.text.trim(),
+          'password': _passwordController.text,
+        }),
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200 && data['success']) {
+        await AuthService.saveClientLogin(data['client'], data['token']);
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ClientAccueil(
+              clientData: data['client'],
+              token: data['token'],
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Auto-login error: $e');
+      // En cas d'erreur, basculer vers le mode login
+      setState(() {
+        _isLogin = true;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFF022519);
@@ -214,7 +250,7 @@ class _LoginPageState extends State<LoginPage> {
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios,
-            color: Color(0xFF022519), // Couleur qui match avec votre thème
+            color: Color(0xFF022519),
           ),
           onPressed: () {
             Navigator.pushReplacement(
@@ -231,8 +267,7 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const SizedBox(
-                    height: 20), // Réduit l'espace puisque AppBar est ajoutée
+                const SizedBox(height: 20),
 
                 // Logo et titre
                 Container(
@@ -242,7 +277,7 @@ class _LoginPageState extends State<LoginPage> {
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.local_car_wash,
+                    Icons.person,
                     size: 60,
                     color: Colors.white,
                   ),
@@ -251,7 +286,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 24),
 
                 Text(
-                  'Bienvenue sur Glitty',
+                  'Espace Client',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -263,8 +298,8 @@ class _LoginPageState extends State<LoginPage> {
 
                 Text(
                   _isLogin
-                      ? 'Connectez-vous à votre compte'
-                      : 'Créez votre compte',
+                      ? 'Connectez-vous à votre compte client'
+                      : 'Créez votre compte client',
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.grey[600],
@@ -451,8 +486,14 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
                             child: _isLoading
-                                ? const CircularProgressIndicator(
-                                    color: Colors.white)
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
                                 : Text(
                                     _isLogin ? 'Se connecter' : 'S\'inscrire',
                                     style: const TextStyle(
@@ -480,18 +521,22 @@ class _LoginPageState extends State<LoginPage> {
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                     GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _isLogin = !_isLogin;
-                          _formKey.currentState?.reset();
-                          _emailController.clear();
-                          _passwordController.clear();
-                          _nomController.clear();
-                          _prenomController.clear();
-                          _telephoneController.clear();
-                          _addressController.clear();
-                        });
-                      },
+                      onTap: _isLoading
+                          ? null
+                          : () {
+                              setState(() {
+                                _isLogin = !_isLogin;
+                                _formKey.currentState?.reset();
+                                _emailController.clear();
+                                _passwordController.clear();
+                                if (!_isLogin) {
+                                  _nomController.clear();
+                                  _prenomController.clear();
+                                  _telephoneController.clear();
+                                  _addressController.clear();
+                                }
+                              });
+                            },
                       child: Text(
                         _isLogin ? 'S\'inscrire' : 'Se connecter',
                         style: TextStyle(

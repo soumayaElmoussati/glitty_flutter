@@ -6,6 +6,7 @@ import 'package:glitty/CLient/MesCommandesPage.dart';
 import 'package:glitty/CLient/MonProfile.dart';
 import 'package:glitty/CLient/PortefeuillePage.dart';
 import 'package:glitty/config/env.dart';
+import 'package:glitty/services/auth_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
@@ -41,7 +42,7 @@ class _ParrainagePageState extends State<ParrainagePage>
   Map<String, dynamic> statistiques = {};
   bool isLoading = true;
   String? error;
-  int _currentIndex = 0; // AJOUT: Variable pour la navigation
+  int _currentIndex = 0;
 
   final TextEditingController codeController = TextEditingController();
 
@@ -248,18 +249,12 @@ class _ParrainagePageState extends State<ParrainagePage>
               );
             },
             child: Container(
-              width: containerSize,
-              height: containerSize,
-              decoration: BoxDecoration(
-                color: _currentIndex == 0 ? Colors.green : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
               child: Center(
                 child: SvgPicture.asset(
                   'assets/icone-home.svg',
                   width: iconSize,
                   height: iconSize,
-                  color: _currentIndex == 0 ? Colors.white : Colors.grey[400],
+                  color: Colors.grey[400],
                 ),
               ),
             ),
@@ -271,26 +266,21 @@ class _ParrainagePageState extends State<ParrainagePage>
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ClientAccueil(
+                  builder: (context) => MesCommandesPage(
                     clientData: widget.clientData,
                     token: widget.token,
+                    clientId: widget.clientData?['id'],
                   ),
                 ),
               );
             },
             child: Container(
-              width: containerSize,
-              height: containerSize,
-              decoration: BoxDecoration(
-                color: _currentIndex == 1 ? Colors.green : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
               child: Center(
                 child: SvgPicture.asset(
                   'assets/icone2.svg',
                   width: iconSize,
                   height: iconSize,
-                  color: _currentIndex == 1 ? Colors.white : Colors.grey[400],
+                  color: Colors.grey[400],
                 ),
               ),
             ),
@@ -302,26 +292,21 @@ class _ParrainagePageState extends State<ParrainagePage>
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ClientAccueil(
+                  builder: (context) => PortefeuillePage(
                     clientData: widget.clientData,
                     token: widget.token,
+                    clientId: widget.clientData?['id'],
                   ),
                 ),
               );
             },
             child: Container(
-              width: containerSize,
-              height: containerSize,
-              decoration: BoxDecoration(
-                color: _currentIndex == 2 ? Colors.green : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
               child: Center(
                 child: SvgPicture.asset(
                   'assets/icone3.svg',
                   width: iconSize,
                   height: iconSize,
-                  color: _currentIndex == 2 ? Colors.white : Colors.grey[400],
+                  color: Colors.grey[400],
                 ),
               ),
             ),
@@ -333,7 +318,7 @@ class _ParrainagePageState extends State<ParrainagePage>
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ClientAccueil(
+                  builder: (context) => MonProfile(
                     clientData: widget.clientData,
                     token: widget.token,
                   ),
@@ -341,18 +326,12 @@ class _ParrainagePageState extends State<ParrainagePage>
               );
             },
             child: Container(
-              width: containerSize,
-              height: containerSize,
-              decoration: BoxDecoration(
-                color: _currentIndex == 3 ? Colors.green : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
               child: Center(
                 child: SvgPicture.asset(
                   'assets/icone4.svg',
                   width: iconSize,
                   height: iconSize,
-                  color: _currentIndex == 3 ? Colors.white : Colors.grey[400],
+                  color: Colors.grey[400],
                 ),
               ),
             ),
@@ -550,16 +529,53 @@ class _ParrainagePageState extends State<ParrainagePage>
                         false,
                         Colors.red,
                         () async {
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.remove('token');
-                          await prefs.remove('userData');
-
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const WelcomePage()),
-                            (route) => false,
+                          // Afficher une boîte de dialogue de confirmation
+                          final shouldLogout = await showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text("Déconnexion"),
+                                content: const Text(
+                                    "Êtes-vous sûr de vouloir vous déconnecter ?"),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    child: const Text("Annuler"),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(true),
+                                    child: const Text(
+                                      "Déconnexion",
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           );
+
+                          if (shouldLogout == true) {
+                            // Utiliser AuthService pour la déconnexion
+                            await AuthService.logout();
+
+                            // Navigation vers la page d'accueil
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const WelcomePage()),
+                              (route) => false,
+                            );
+
+                            // Optionnel : Afficher un message de confirmation
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Déconnexion réussie"),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
                         },
                       ),
                     ),
@@ -655,8 +671,34 @@ class _ParrainagePageState extends State<ParrainagePage>
                   // Deuxième ligne : barre de recherche + icône salut
                   Row(
                     children: [
-                      // Barre de recherche à gauche
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.pop(context);
+                        },
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.9),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Color(0xFF022519),
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
                       Expanded(
+                        flex: 3,
                         child: Container(
                           height: 40,
                           decoration: BoxDecoration(
@@ -675,30 +717,15 @@ class _ParrainagePageState extends State<ParrainagePage>
                                 height: 19 / 14,
                                 letterSpacing: -0.3,
                               ),
-                              prefixIcon: Padding(
-                                padding: const EdgeInsets.all(10.0),
-                                child: Image.asset(
-                                  'assets/search-icone.png',
-                                  width: 20,
-                                  height: 20,
-                                ),
-                              ),
                               border: InputBorder.none,
-                              contentPadding:
-                                  const EdgeInsets.symmetric(horizontal: 12),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
                               isDense: true,
                             ),
                           ),
                         ),
-                      ),
-
-                      const SizedBox(width: 12),
-
-                      // Icône salut à l'extrême droite
-                      Image.asset(
-                        'assets/salut-icone.png',
-                        width: 40,
-                        height: 40,
                       ),
                     ],
                   ),
