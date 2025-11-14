@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:glitty/CLient/ChangePasswordPage.dart';
 import 'package:glitty/CLient/EditProfile.dart';
 import 'package:glitty/CLient/MonCagnotte.dart';
 import 'package:glitty/services/auth_service.dart';
@@ -740,14 +741,22 @@ class _ProfileContentState extends State<MonProfile> {
 
                         // Carte Localisations
                         _buildNavigationCard(
-                          "Localisations",
-                          "Ajoutez vos adresses personnelle et professionnelle",
-                          Icons.location_on_rounded,
+                          "Changer le mot de passe",
+                          "Mettez à jour votre mot de passe de sécurité",
+                          Icons
+                              .lock_rounded, // Icône de cadenas pour la sécurité
                           () {
-                            // Navigation vers la page des localisations
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ChangePasswordPage(
+                                  clientData: widget.clientData,
+                                  token: widget.token,
+                                ),
+                              ),
+                            );
                           },
                         ),
-
                         _buildNavigationCard(
                           "Afficher la Cagnotte",
                           "Solde actuel de la cagnotte",
