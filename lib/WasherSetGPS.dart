@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:glitty/MesTicketsWasher.dart';
+import 'package:glitty/WelcomePage.dart';
 import 'package:glitty/config/env.dart';
+import 'package:glitty/services/auth_service.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -32,6 +35,11 @@ class _WasherSetGPSPageState extends State<WasherSetGPSPage> {
   bool _locationLoaded = false;
   bool _isLoadingAddress = false;
   final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>> _searchResults = [];
+  bool _isSearching = false;
+  bool _showLocationModal = false;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   String _street = '';
   String _city = '';
@@ -47,7 +55,7 @@ class _WasherSetGPSPageState extends State<WasherSetGPSPage> {
     });
   }
 
-  // Gardez toutes les fonctions de géocodage existantes...
+  // Fonctions de géocodage existantes
   Future<Map<String, dynamic>> _getAddressDetailsFromLatLng(
       LatLng latLng) async {
     setState(() {
@@ -219,6 +227,98 @@ class _WasherSetGPSPageState extends State<WasherSetGPSPage> {
     _mapController.move(point, 15.0);
   }
 
+  // NOUVELLES FONCTIONS POUR LA RECHERCHE
+  Future<void> _searchLocation(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+    });
+
+    try {
+      final response = await http.get(
+        Uri.parse(
+          'https://nominatim.openstreetmap.org/search?format=json&q=${Uri.encodeQueryComponent(query)}&limit=10&addressdetails=1&countrycodes=fr&viewbox=-5.0,41.0,9.0,51.0&bounded=1',
+        ),
+        headers: {
+          'User-Agent': 'GlittyApp/1.0 (contact@glitty.com)',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          _searchResults = data.map((item) {
+            return {
+              'display_name': item['display_name'],
+              'lat': double.parse(item['lat']),
+              'lon': double.parse(item['lon']),
+              'type': item['type'],
+              'importance': item['importance'] ?? 0.0,
+            };
+          }).toList();
+        });
+      } else {
+        print('Erreur HTTP recherche: ${response.statusCode}');
+        setState(() {
+          _searchResults = [];
+        });
+      }
+    } catch (e) {
+      print('Erreur de recherche: $e');
+      setState(() {
+        _searchResults = [];
+      });
+    } finally {
+      setState(() {
+        _isSearching = false;
+      });
+    }
+  }
+
+  void _updateMapLocation(LatLng newLocation, String address) {
+    setState(() {
+      _position = newLocation;
+      _addressController.text = address;
+    });
+    _mapController.move(newLocation, 15.0);
+    Navigator.pop(context);
+  }
+
+  void _showLocationBottomSheet() {
+    setState(() {
+      _showLocationModal = true;
+      _searchResults = [];
+      _searchController.clear();
+    });
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _buildLocationModal(),
+    ).then((value) {
+      setState(() {
+        _showLocationModal = false;
+        _searchResults = [];
+      });
+    });
+  }
+
+  void _centerOnFrance() {
+    setState(() {
+      _position = LatLng(46.603354, 1.888334);
+      _addressController.text = 'France';
+    });
+    _mapController.move(_position, 6.0);
+  }
+
   Future<void> _validerPosition() async {
     setState(() {
       _isLoading = true;
@@ -277,7 +377,7 @@ class _WasherSetGPSPageState extends State<WasherSetGPSPage> {
               builder: (_) => DashboardWasherPage(
                 nom: widget.washerData?['first_name'] ?? 'Washer',
                 washerId: widget.washerId,
-                //   washerData: widget.washerData,
+                washerData: widget.washerData,
               ),
             ),
           );
@@ -406,17 +506,10 @@ class _WasherSetGPSPageState extends State<WasherSetGPSPage> {
                           builder: (_) => DashboardWasherPage(
                             nom: washerName,
                             washerId: widget.washerId,
-                            //     washerData: widget.washerData,
+                            washerData: widget.washerData,
                           ),
                         ),
                       ),
-                    ),
-                    _buildDrawerItem(
-                      Icons.notifications_rounded,
-                      "Notifications",
-                      false,
-                      dark,
-                      () => Navigator.pushNamed(context, '/notifications'),
                     ),
                     _buildDrawerItem(
                       Icons.calendar_month_rounded,
@@ -446,6 +539,24 @@ class _WasherSetGPSPageState extends State<WasherSetGPSPage> {
                       dark,
                       () => Navigator.pop(context),
                     ),
+                    _buildDrawerItem(
+                      Icons.help_rounded,
+                      "Aide & Support",
+                      false,
+                      dark,
+                      () {
+                        Navigator.pop(context); // Fermer le drawer
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MesTicketsWasher(
+                              washerId: widget.washerId,
+                              washerData: widget.washerData,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                     const Spacer(),
                     Container(
                       margin: const EdgeInsets.symmetric(
@@ -455,12 +566,55 @@ class _WasherSetGPSPageState extends State<WasherSetGPSPage> {
                         "Déconnexion",
                         false,
                         Colors.red,
-                        () => Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const LoginWasherPage()),
-                          (route) => false,
-                        ),
+                        () async {
+                          // Afficher une boîte de dialogue de confirmation
+                          final shouldLogout = await showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text("Déconnexion"),
+                                content: const Text(
+                                    "Êtes-vous sûr de vouloir vous déconnecter ?"),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    child: const Text("Annuler"),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(true),
+                                    child: const Text(
+                                      "Déconnexion",
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+
+                          if (shouldLogout == true) {
+                            // Utiliser AuthService pour la déconnexion
+                            await AuthService.logout();
+
+                            // Navigation vers la page d'accueil
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const WelcomePage()),
+                              (route) => false,
+                            );
+
+                            // Optionnel : Afficher un message de confirmation
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Déconnexion réussie"),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        },
                       ),
                     ),
                   ],
@@ -501,208 +655,499 @@ class _WasherSetGPSPageState extends State<WasherSetGPSPage> {
     );
   }
 
+  // NOUVELLE MÉTHODE POUR LA MODALE DE RECHERCHE
+  Widget _buildLocationModal() {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.8,
+      padding: const EdgeInsets.all(20),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Rechercher une adresse',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Entrez une adresse, une ville, un lieu...',
+                border: InputBorder.none,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchResults = [];
+                          });
+                        },
+                      )
+                    : null,
+              ),
+              onChanged: (value) {
+                if (value.length > 2) {
+                  Future.delayed(const Duration(milliseconds: 500), () {
+                    _searchLocation(value);
+                  });
+                } else {
+                  setState(() {
+                    _searchResults = [];
+                  });
+                }
+              },
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (_isSearching)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 10),
+                  Text('Recherche en cours...'),
+                ],
+              ),
+            ),
+          const SizedBox(height: 10),
+          Expanded(
+            child: _searchResults.isNotEmpty
+                ? _buildSearchResults()
+                : _buildEmptyState(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchResults() {
+    return ListView.builder(
+      itemCount: _searchResults.length,
+      itemBuilder: (context, index) {
+        final result = _searchResults[index];
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+          elevation: 1,
+          child: ListTile(
+            leading: Icon(
+              _getLocationIcon(result['type']),
+              color: dark,
+            ),
+            title: Text(
+              result['display_name'],
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            subtitle: Text(
+              '${result['lat'].toStringAsFixed(6)}, ${result['lon'].toStringAsFixed(6)}',
+              style: const TextStyle(fontSize: 10, color: Colors.grey),
+            ),
+            onTap: () {
+              _updateMapLocation(
+                LatLng(result['lat'], result['lon']),
+                result['display_name'],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.search_off,
+            size: 64,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _searchController.text.isEmpty
+                ? 'Entrez une adresse pour commencer la recherche'
+                : 'Aucun résultat trouvé pour "${_searchController.text}"',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (_searchController.text.isEmpty)
+            Text(
+              'Exemples: "Paris", "12 rue de la Paix Lyon", "Eiffel Tower"',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getLocationIcon(String type) {
+    switch (type) {
+      case 'city':
+      case 'town':
+      case 'village':
+        return Icons.location_city;
+      case 'street':
+      case 'road':
+        return Icons.signpost;
+      case 'house':
+      case 'building':
+        return Icons.home;
+      case 'amenity':
+        return Icons.local_activity;
+      case 'natural':
+        return Icons.landscape;
+      default:
+        return Icons.place;
+    }
+  }
+
+  Widget _buildNavIcon(IconData icon, String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: dark,
+      key: _scaffoldKey,
       drawer: _buildModernDrawer(context),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header identique au Dashboard
-            Container(
-              height: 180,
-              width: double.infinity,
-              color: dark,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Column(
-                children: [
-                  // Première ligne : icônes menu, logo, notification
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Menu icon qui ouvre le drawer
-                      Builder(
-                        builder: (context) => GestureDetector(
-                          onTap: () => Scaffold.of(context).openDrawer(),
-                          child: Image.asset(
-                            'assets/menu-icone.png',
-                            width: 24,
-                            height: 24,
-                            color: Colors.white,
-                          ),
+      backgroundColor: dark,
+      body: Stack(
+        children: [
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              center: _position,
+              zoom: _locationLoaded ? 15.0 : 10.0,
+              onTap: (tapPosition, point) {
+                _onMapTap(point);
+              },
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.glitty.app',
+              ),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    width: 40.0,
+                    height: 40.0,
+                    point: _position,
+                    builder: (ctx) => Stack(
+                      children: [
+                        const Icon(
+                          Icons.location_pin,
+                          color: Colors.red,
+                          size: 40,
                         ),
-                      ),
-                      Image.asset(
-                        'assets/logo-glitty.png',
-                        width: 149,
-                        height: 69,
-                      ),
-                      // Icône notification désactivée
-                      Container(
-                        width: 24,
-                        height: 24,
-                        color: Colors.transparent,
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16), // Espace entre les deux lignes
-
-                  // Deuxième ligne : titre
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          height: 40,
-                          child: const Center(
-                            child: Text(
-                              "Définir la position GPS",
-                              style: TextStyle(
+                        if (_isLoadingAddress)
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: const BoxDecoration(
                                 color: Colors.white,
-                                fontFamily: "DM Sans",
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: -0.3,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const SizedBox(
+                                width: 10,
+                                height: 10,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1,
+                                  valueColor:
+                                      AlwaysStoppedAnimation<Color>(Colors.red),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (_isLoading)
+            const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'Localisation en cours...',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
             ),
-
-            // Carte OpenStreetMap
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(40),
-                    topRight: Radius.circular(40),
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    FlutterMap(
-                      mapController: _mapController,
-                      options: MapOptions(
-                        center: _position,
-                        zoom: _locationLoaded ? 15.0 : 10.0,
-                        onTap: (tapPosition, point) {
-                          _onMapTap(point);
-                        },
+          SafeArea(
+            child: Column(
+              children: [
+                Container(
+                  height: 180,
+                  width: double.infinity,
+                  color: dark,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Builder(
+                            builder: (context) => GestureDetector(
+                              onTap: () =>
+                                  _scaffoldKey.currentState?.openDrawer(),
+                              child: Image.asset(
+                                'assets/menu-icone.png',
+                                width: 24,
+                                height: 24,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          Image.asset(
+                            'assets/logo-glitty.png',
+                            width: 149,
+                            height: 69,
+                          ),
+                          Container(
+                            width: 24,
+                            height: 24,
+                            color: Colors.transparent,
+                          ),
+                        ],
                       ),
-                      children: [
-                        TileLayer(
-                          urlTemplate:
-                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                          userAgentPackageName: 'com.glitty.app',
-                        ),
-                        MarkerLayer(
-                          markers: [
-                            Marker(
-                              width: 40.0,
-                              height: 40.0,
-                              point: _position,
-                              builder: (ctx) => Stack(
-                                children: [
-                                  const Icon(
-                                    Icons.location_pin,
-                                    color: Colors.red,
-                                    size: 40,
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => DashboardWasherPage(
+                                    nom: widget.washerData?['first_name'] ??
+                                        'Washer',
+                                    washerId: widget.washerId,
+                                    washerData: widget.washerData,
                                   ),
-                                  if (_isLoadingAddress)
-                                    Positioned(
-                                      right: 0,
-                                      top: 0,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(2),
-                                        decoration: const BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: const SizedBox(
-                                          width: 10,
-                                          height: 10,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 1,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                    Colors.red),
-                                          ),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withOpacity(0.9),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.arrow_back_rounded,
+                                color: Color(0xFF022519),
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 3,
+                            child: GestureDetector(
+                              onTap: _showLocationBottomSheet,
+                              child: Container(
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const SizedBox(width: 12),
+                                    const Icon(
+                                      Icons.search,
+                                      color: Colors.grey,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Rechercher une adresse...',
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 14,
                                         ),
                                       ),
                                     ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    Positioned(
-                      top: 20,
-                      right: 20,
-                      child: FloatingActionButton(
-                        onPressed: _getCurrentLocation,
-                        backgroundColor: Colors.white,
-                        mini: true,
-                        child: Icon(
-                          Icons.my_location,
-                          color: _isLoading ? Colors.grey : dark,
-                        ),
+                          ),
+                        ],
                       ),
-                    ),
-                    if (_isLoading)
-                      const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CircularProgressIndicator(
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.blue),
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              'Localisation en cours...',
-                              style: TextStyle(
-                                color: Colors.black,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
-
-            // Section d'adresse et bouton d'enregistrement
-            Container(
+          ),
+          Positioned(
+            bottom: 200,
+            right: 20,
+            child: Column(
+              children: [
+                FloatingActionButton(
+                  onPressed: _getCurrentLocation,
+                  backgroundColor: Colors.white,
+                  mini: true,
+                  child: Icon(
+                    Icons.my_location,
+                    color: _isLoading ? Colors.grey : dark,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                FloatingActionButton(
+                  onPressed: _centerOnFrance,
+                  backgroundColor: Colors.white,
+                  mini: true,
+                  child: const Icon(
+                    Icons.map,
+                    color: Color(0xFF022519),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
               padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
+              decoration: BoxDecoration(
+                color: dark,
+                borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(20),
                   topRight: Radius.circular(20),
                 ),
               ),
               child: Column(
                 children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildNavIcon(Icons.home_filled, 'Accueil', () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DashboardWasherPage(
+                              nom: widget.washerData?['first_name'] ?? 'Washer',
+                              washerId: widget.washerId,
+                              washerData: widget.washerData,
+                            ),
+                          ),
+                        );
+                      }),
+                      _buildNavIcon(
+                          Icons.search, 'Rechercher', _showLocationBottomSheet),
+                      _buildNavIcon(Icons.location_on, 'Ma position',
+                          _getCurrentLocation),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.grey[50],
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey[300]!),
                     ),
                     child: Row(
                       children: [
@@ -721,7 +1166,7 @@ class _WasherSetGPSPageState extends State<WasherSetGPSPage> {
                                 )
                               else if (_addressController.text.isEmpty)
                                 const Text(
-                                  'Cliquez sur la carte pour sélectionner une position...',
+                                  'Cliquez sur la carte ou recherchez une adresse...',
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
@@ -738,27 +1183,28 @@ class _WasherSetGPSPageState extends State<WasherSetGPSPage> {
                                         fontSize: 14,
                                         fontWeight: FontWeight.w500,
                                       ),
-                                      maxLines: 2,
+                                      maxLines: 3,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     if (_street.isNotEmpty || _city.isNotEmpty)
                                       Text(
                                         '${_street.isNotEmpty ? _street : ''}${_street.isNotEmpty && _city.isNotEmpty ? ', ' : ''}${_city.isNotEmpty ? _city : ''}',
                                         style: const TextStyle(
-                                          fontSize: 12,
+                                          fontSize: 10,
                                           color: Colors.grey,
                                         ),
                                       ),
                                   ],
                                 ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Lat: ${_position.latitude.toStringAsFixed(6)}, Lng: ${_position.longitude.toStringAsFixed(6)}',
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 12,
+                              if (!_isLoadingAddress &&
+                                  _addressController.text.isNotEmpty)
+                                Text(
+                                  '${_position.latitude.toStringAsFixed(6)}, ${_position.longitude.toStringAsFixed(6)}',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey,
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         ),
@@ -773,51 +1219,50 @@ class _WasherSetGPSPageState extends State<WasherSetGPSPage> {
                       ],
                     ),
                   ),
-
-                  const SizedBox(height: 16),
-
-                  // Bouton d'enregistrement
-                  ElevatedButton(
-                    onPressed: (_isLoading ||
-                            _isLoadingAddress ||
-                            _addressController.text.isEmpty)
-                        ? null
-                        : _validerPosition,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: (_isLoading ||
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: (_isLoading ||
                               _isLoadingAddress ||
                               _addressController.text.isEmpty)
-                          ? Colors.grey
-                          : dark,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                          ? null
+                          : _validerPosition,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: (_isLoading ||
+                                _isLoadingAddress ||
+                                _addressController.text.isEmpty)
+                            ? Colors.grey
+                            : const Color(0xFF4FBF67),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              'Enregistrer la position',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                     ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Text(
-                            "Enregistrer la position",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -825,6 +1270,7 @@ class _WasherSetGPSPageState extends State<WasherSetGPSPage> {
   @override
   void dispose() {
     _addressController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 }

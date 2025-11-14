@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:glitty/CLient/ClientNotificationsPage.dart';
 import 'package:glitty/CLient/MesTickets.dart';
 import 'package:glitty/CLient/MonProfile.dart';
+import 'package:glitty/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'ReserverLavagePage.dart';
 import 'MesCommandesPage.dart';
@@ -256,16 +258,53 @@ class _ClientAccueilState extends State<ClientAccueil> {
                         false,
                         Colors.red,
                         () async {
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.remove('token');
-                          await prefs.remove('userData');
-
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const WelcomePage()),
-                            (route) => false,
+                          // Afficher une boîte de dialogue de confirmation
+                          final shouldLogout = await showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text("Déconnexion"),
+                                content: const Text(
+                                    "Êtes-vous sûr de vouloir vous déconnecter ?"),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    child: const Text("Annuler"),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(true),
+                                    child: const Text(
+                                      "Déconnexion",
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           );
+
+                          if (shouldLogout == true) {
+                            // Utiliser AuthService pour la déconnexion
+                            await AuthService.logout();
+
+                            // Navigation vers la page d'accueil
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const WelcomePage()),
+                              (route) => false,
+                            );
+
+                            // Optionnel : Afficher un message de confirmation
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Déconnexion réussie"),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
                         },
                       ),
                     ),
@@ -345,11 +384,25 @@ class _ClientAccueilState extends State<ClientAccueil> {
                         width: 149,
                         height: 69,
                       ),
-                      Image.asset(
-                        'assets/notification-icone.png',
-                        width: 24,
-                        height: 24,
-                        color: Colors.white,
+                      // Remplacer l'icône de notification actuelle par un GestureDetector qui mène à la page des notifications
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ClientNotificationsPage(
+                                clientId: widget.clientData?['id'] ?? 1,
+                                clientData: widget.clientData,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Image.asset(
+                          'assets/notification-icone.png',
+                          width: 24,
+                          height: 24,
+                          color: Colors.white,
+                        ),
                       ),
                     ],
                   ),

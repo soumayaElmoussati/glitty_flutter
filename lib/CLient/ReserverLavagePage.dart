@@ -7,6 +7,7 @@ import 'package:glitty/CLient/ParrainagePage.dart';
 import 'package:glitty/CLient/PortefeuillePage.dart';
 import 'package:glitty/WelcomePage.dart';
 import 'package:glitty/config/env.dart';
+import 'package:glitty/services/auth_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -27,10 +28,60 @@ class ReserverLavagePage extends StatefulWidget {
 }
 
 class _ReserverLavagePageState extends State<ReserverLavagePage> {
-  int _currentIndex = 0;
   Map<String, dynamic>? tarifsData;
   bool isLoading = true;
   String errorMessage = '';
+
+  // NOUVELLE PALETTE DE COULEURS DANS LES VERTS
+  final Color _primaryColor = const Color(0xFF022519);
+  final Color _accentColor = const Color(0xFF27AE60); // Vert émeraude
+  final Color _cardColor1 = const Color(0xFF2ECC71); // Vert clair
+  final Color _cardColor2 = const Color(0xFF16A085); // Vert océan
+  final Color _cardColor3 = const Color(0xFF229954); // Vert forêt
+  final Color _backgroundColor = const Color(0xFFF8F9FA); // Gris très clair
+
+  // NOUVEAU : Configuration des services disponibles
+  final List<Map<String, dynamic>> _services = [
+    {
+      'title': 'Lavage Intérieur',
+      'description': 'Nettoyage complet et détaillé de l\'habitacle',
+      'apiKey': 'lavage_interieur',
+      'color': const Color(0xFF2ECC71),
+      'icon': Icons.airline_seat_recline_normal_rounded,
+      'features': [
+        'Nettoyage intérieur complet',
+        'Tableau de bord et plastiques',
+        'Aspirateur professionnel',
+        'Désinfection des surfaces'
+      ],
+    },
+    {
+      'title': 'Lavage Extérieur',
+      'description': 'Brillance et propreté extérieure optimale',
+      'apiKey': 'lavage_exterieur',
+      'color': const Color(0xFF16A085),
+      'icon': Icons.car_repair_rounded,
+      'features': [
+        'Nettoyage extérieur complet',
+        'Vitres cristallines',
+        'Nettoyage des roues et jantes',
+        'Séchage sans trace'
+      ],
+    },
+    {
+      'title': 'Lavage Complet',
+      'description': 'L\'excellence d\'un nettoyage intégral',
+      'apiKey': 'lavage_complet',
+      'color': const Color(0xFF229954),
+      'icon': Icons.diamond_rounded,
+      'features': [
+        'Intérieur et extérieur complet',
+        'Traitement anti-poussière',
+        'Produits écologiques premium',
+        'Garantie satisfaction 48h'
+      ],
+    },
+  ];
 
   @override
   void initState() {
@@ -72,10 +123,54 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
     }
   }
 
+  // MÉTHODE POUR EXTRAIRE ET FORMATER LES PRIX
+  String _getFormattedPrice(
+      Map<String, dynamic>? tarifsData, String serviceType) {
+    if (tarifsData == null) {
+      // Retourne "Recommandé" pour les lavages intérieur et extérieur, "Complet" pour premium
+      if (serviceType == 'lavage_complet') {
+        return "Complet";
+      } else {
+        return "Recommandé";
+      }
+    }
+
+    // Si tarifsData contient des objets avec des champs 'price'
+    if (tarifsData[serviceType] is Map) {
+      final serviceData = tarifsData[serviceType] as Map;
+      final price = serviceData['price'] ??
+          serviceData['montant'] ??
+          serviceData['tarif'];
+      if (price != null) {
+        if (price is num) return "${price.toStringAsFixed(2)} €";
+        if (price is String) {
+          final numericPrice = double.tryParse(price);
+          if (numericPrice != null)
+            return "${numericPrice.toStringAsFixed(2)} €";
+          return price;
+        }
+      }
+    }
+
+    // Si c'est directement un nombre
+    final price = tarifsData[serviceType];
+    if (price is num) return "${price.toStringAsFixed(2)} €";
+    if (price is String) {
+      final numericPrice = double.tryParse(price);
+      if (numericPrice != null) return "${numericPrice.toStringAsFixed(2)} €";
+      return price;
+    }
+
+    // Par défaut, retourne "Recommandé" ou "Complet" selon le type de service
+    if (serviceType == 'lavage_complet') {
+      return "Complet";
+    } else {
+      return "Recommandé";
+    }
+  }
+
   // Méthode pour construire le Drawer
   Widget _buildClientDrawer(BuildContext context) {
-    const dark = Color(0xFF022519);
-    const accentColor = Color(0xFF4CAF50);
     final clientName = widget.clientData?['first_name'] ?? 'Client';
 
     return Drawer(
@@ -84,12 +179,11 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [dark, dark.withOpacity(0.8)],
+            colors: [_primaryColor, _primaryColor.withOpacity(0.8)],
           ),
         ),
         child: Column(
           children: [
-            // En-tête du Drawer
             Container(
               height: 200,
               padding: const EdgeInsets.all(20),
@@ -104,7 +198,7 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
                     ),
                     child: CircleAvatar(
                       radius: 35,
-                      backgroundColor: accentColor,
+                      backgroundColor: _accentColor,
                       child: Text(
                         clientName.isNotEmpty
                             ? clientName[0].toUpperCase()
@@ -131,9 +225,9 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: accentColor.withOpacity(0.2),
+                      color: _accentColor.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: accentColor.withOpacity(0.3)),
+                      border: Border.all(color: _accentColor.withOpacity(0.3)),
                     ),
                     child: const Text(
                       "● Client",
@@ -147,7 +241,6 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
                 ],
               ),
             ),
-            // Contenu du Drawer
             Expanded(
               child: Container(
                 decoration: const BoxDecoration(
@@ -164,7 +257,7 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
                       Icons.home_rounded,
                       "Accueil",
                       false,
-                      dark,
+                      _primaryColor,
                       () {
                         Navigator.pushReplacement(
                           context,
@@ -181,7 +274,7 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
                       Icons.shopping_bag_rounded,
                       "Mes commandes",
                       false,
-                      dark,
+                      _primaryColor,
                       () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -198,7 +291,7 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
                       Icons.account_balance_wallet_rounded,
                       "Portefeuille",
                       false,
-                      dark,
+                      _primaryColor,
                       () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -215,7 +308,7 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
                       Icons.person_rounded,
                       "Mon profil",
                       false,
-                      dark,
+                      _primaryColor,
                       () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -233,7 +326,7 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
                       Icons.people_rounded,
                       "Parrainage",
                       false,
-                      dark,
+                      _primaryColor,
                       () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -248,7 +341,7 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
                       Icons.help_rounded,
                       "Aide & Support",
                       false,
-                      dark,
+                      _primaryColor,
                       () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -273,16 +366,53 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
                         false,
                         Colors.red,
                         () async {
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.remove('token');
-                          await prefs.remove('userData');
-
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const WelcomePage()),
-                            (route) => false,
+                          // Afficher une boîte de dialogue de confirmation
+                          final shouldLogout = await showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text("Déconnexion"),
+                                content: const Text(
+                                    "Êtes-vous sûr de vouloir vous déconnecter ?"),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    child: const Text("Annuler"),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(true),
+                                    child: const Text(
+                                      "Déconnexion",
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           );
+
+                          if (shouldLogout == true) {
+                            // Utiliser AuthService pour la déconnexion
+                            await AuthService.logout();
+
+                            // Navigation vers la page d'accueil
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const WelcomePage()),
+                              (route) => false,
+                            );
+
+                            // Optionnel : Afficher un message de confirmation
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Déconnexion réussie"),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
                         },
                       ),
                     ),
@@ -325,6 +455,161 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
     );
   }
 
+  // MÉTHODE : Construction des cartes de service minimalistes
+  Widget _buildServiceCard({
+    required String title,
+    required String description,
+    required String price,
+    required Color color,
+    required IconData icon,
+    required List<String> features,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: color.withOpacity(0.2),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      icon,
+                      color: color,
+                      size: 24,
+                    ),
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      price,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: TextStyle(
+                  color: _primaryColor,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: "Poppins",
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                description,
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Column(
+                children: features
+                    .map((feature) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle_rounded,
+                                color: color,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  feature,
+                                  style: TextStyle(
+                                    color: Colors.grey[700],
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ))
+                    .toList(),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: color.withOpacity(0.3),
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    "SÉLECTIONNER",
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Méthode de navigation
+  void _navigateToVehicle(String typeLavage, String typePrestation) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AjouterVehicule(
+          clientId: widget.clientId,
+          typeLavage: typeLavage,
+          typePrestation: typePrestation,
+          clientData: widget.clientData,
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomNavigationBar() {
     final double iconSize = 24;
     final double containerSize = 40;
@@ -337,23 +622,21 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
         children: [
           GestureDetector(
             onTap: () {
-              if (_currentIndex != 0) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ClientAccueil(
-                      clientData: widget.clientData,
-                      token: widget.token,
-                    ),
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ClientAccueil(
+                    clientData: widget.clientData,
+                    token: widget.token,
                   ),
-                );
-              }
+                ),
+              );
             },
             child: Container(
               width: containerSize,
               height: containerSize,
               decoration: BoxDecoration(
-                color: _currentIndex == 0 ? Colors.green : Colors.transparent,
+                color: Colors.green,
                 shape: BoxShape.circle,
               ),
               child: Center(
@@ -361,79 +644,65 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
                   'assets/icone-home.svg',
                   width: iconSize,
                   height: iconSize,
-                  color: _currentIndex == 0 ? Colors.white : Colors.grey[400],
+                  color: Colors.white,
                 ),
               ),
             ),
           ),
-
-          // Icône Commandes
           GestureDetector(
             onTap: () {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ClientAccueil(
+                  builder: (context) => MesCommandesPage(
                     clientData: widget.clientData,
                     token: widget.token,
+                    clientId: widget.clientData?['id'],
                   ),
                 ),
               );
             },
             child: Container(
-              width: containerSize,
-              height: containerSize,
-              decoration: BoxDecoration(
-                color: _currentIndex == 1 ? Colors.green : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
               child: Center(
                 child: SvgPicture.asset(
                   'assets/icone2.svg',
                   width: iconSize,
                   height: iconSize,
-                  color: _currentIndex == 1 ? Colors.white : Colors.grey[400],
+                  color: Colors.grey[400],
                 ),
               ),
             ),
           ),
-
           GestureDetector(
             onTap: () {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ClientAccueil(
+                  builder: (context) => PortefeuillePage(
                     clientData: widget.clientData,
                     token: widget.token,
+                    clientId: widget.clientData?['id'],
                   ),
                 ),
               );
             },
             child: Container(
-              width: containerSize,
-              height: containerSize,
-              decoration: BoxDecoration(
-                color: _currentIndex == 2 ? Colors.green : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
               child: Center(
                 child: SvgPicture.asset(
                   'assets/icone3.svg',
                   width: iconSize,
                   height: iconSize,
-                  color: _currentIndex == 2 ? Colors.white : Colors.grey[400],
+                  color: Colors.grey[400],
                 ),
               ),
             ),
           ),
-
           GestureDetector(
             onTap: () {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ClientAccueil(
+                  builder: (context) => MonProfile(
                     clientData: widget.clientData,
                     token: widget.token,
                   ),
@@ -441,18 +710,12 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
               );
             },
             child: Container(
-              width: containerSize,
-              height: containerSize,
-              decoration: BoxDecoration(
-                color: _currentIndex == 3 ? Colors.green : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
               child: Center(
                 child: SvgPicture.asset(
                   'assets/icone4.svg',
                   width: iconSize,
                   height: iconSize,
-                  color: _currentIndex == 3 ? Colors.white : Colors.grey[400],
+                  color: Colors.grey[400],
                 ),
               ),
             ),
@@ -464,27 +727,28 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
 
   @override
   Widget build(BuildContext context) {
-    const dark = Color(0xFF022519);
+    // DEBUG : Afficher la structure des données tarifsData
+    if (tarifsData != null) {
+      print("Structure tarifsData: $tarifsData");
+    }
 
     return Scaffold(
       drawer: _buildClientDrawer(context),
-      backgroundColor: dark,
+      backgroundColor: _primaryColor,
       body: SafeArea(
         child: Column(
           children: [
-            // Partie supérieure : fixe à 100
+            // Partie supérieure inchangée
             Container(
               height: 180,
               width: double.infinity,
-              color: dark,
+              color: _primaryColor,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Column(
                 children: [
-                  // Première ligne : icônes menu, logo, notification
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Builder pour accéder au contexte du Scaffold
                       Builder(
                         builder: (context) => GestureDetector(
                           onTap: () => Scaffold.of(context).openDrawer(),
@@ -509,13 +773,9 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 16),
-
-                  // Deuxième ligne : barre de recherche + icône salut
                   Row(
                     children: [
-                      // AJOUT: Bouton de retour avec flèche complète
                       GestureDetector(
                         onTap: () {
                           Navigator.pushReplacement(
@@ -542,16 +802,14 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
                               ),
                             ],
                           ),
-                          child: const Icon(
-                            Icons.arrow_back_rounded, // Flèche complète
-                            color: Color(0xFF022519),
-                            size: 24, // Taille augmentée
+                          child: Icon(
+                            Icons.arrow_back_rounded,
+                            color: _primaryColor,
+                            size: 24,
                           ),
                         ),
                       ),
-
                       const SizedBox(width: 12),
-
                       Expanded(
                         flex: 3,
                         child: Container(
@@ -575,8 +833,7 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
                               border: InputBorder.none,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 12,
-                                vertical:
-                                    12, // AJOUT: Padding vertical pour centrer
+                                vertical: 12,
                               ),
                               isDense: true,
                             ),
@@ -589,12 +846,13 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
               ),
             ),
 
+            // SECTION : Design épuré des services
             Expanded(
               child: Container(
                 width: double.infinity,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
+                decoration: BoxDecoration(
+                  color: _backgroundColor,
+                  borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(40),
                     topRight: Radius.circular(40),
                   ),
@@ -607,427 +865,55 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
                             padding: const EdgeInsets.all(20),
                             child: Column(
                               children: [
-                                // Titre avec bouton de retour
-                                Row(
-                                  children: [
-                                    const SizedBox(width: 8),
-                                    // Titre
-                                    const Expanded(
-                                      child: Text(
-                                        "Choisir votre lavage",
+                                // En-tête simplifié
+                                Container(
+                                  padding: const EdgeInsets.only(bottom: 20),
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        "Nos Prestations",
+                                        style: TextStyle(
+                                          color: _primaryColor,
+                                          fontFamily: "Poppins",
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        "Choisissez le service qui correspond à vos besoins",
                                         textAlign: TextAlign.center,
                                         style: TextStyle(
-                                          color: Color(0xFF000000),
+                                          color: Colors.grey[600],
                                           fontFamily: "DM Sans",
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                          height: 26 / 16,
-                                          letterSpacing: -0.356,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w400,
                                         ),
                                       ),
-                                    ),
-                                    // Espace vide pour équilibrer la disposition
-                                    const SizedBox(width: 48),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-
-                                // Card avec dégradé radial - Lavage intérieur
-                                GestureDetector(
-                                  onTap: () {
-                                    // Navigation vers AjouterVehicule sans prix
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => AjouterVehicule(
-                                          clientId: widget.clientId,
-                                          typeLavage: "Lavage intérieur",
-                                          typePrestation: "intérieur",
-                                          clientData: widget.clientData,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  child: Container(
-                                    width: 345.563,
-                                    height: 165.396,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(12),
-                                      gradient: const RadialGradient(
-                                        center: Alignment.center,
-                                        radius: 1.0,
-                                        colors: [
-                                          Color(0xFF4FBF67),
-                                          Color(0xFF12A932),
-                                        ],
-                                        stops: [0.0, 1.0],
-                                      ),
-                                    ),
-                                    child: Stack(
-                                      children: [
-                                        // Titre en haut à gauche
-                                        const Positioned(
-                                          top: 16,
-                                          left: 31,
-                                          child: Text(
-                                            "Lavage intérieur",
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontFamily: "Poppins",
-                                              fontSize: 25.053,
-                                              fontWeight: FontWeight.w700,
-                                              letterSpacing: -1.069,
-                                            ),
-                                          ),
-                                        ),
-
-                                        // Liste des éléments sous le titre
-                                        const Positioned(
-                                          top: 60,
-                                          left: 31,
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                "✅ Nettoyage intérieur",
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontFamily: "DM Sans",
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.w500,
-                                                  height: 14 / 9,
-                                                  letterSpacing: -0.3,
-                                                ),
-                                              ),
-                                              SizedBox(height: 4),
-                                              Text(
-                                                "✅ Tableau de bord",
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontFamily: "DM Sans",
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.w500,
-                                                  height: 14 / 9,
-                                                  letterSpacing: -0.3,
-                                                ),
-                                              ),
-                                              SizedBox(height: 4),
-                                              Text(
-                                                "✅ Aspirateur",
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontFamily: "DM Sans",
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.w500,
-                                                  height: 14 / 9,
-                                                  letterSpacing: -0.3,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-
-                                        // Image en bas à droite
-                                        Positioned(
-                                          bottom: 16,
-                                          right: 33,
-                                          child: Image.asset(
-                                            'assets/protection 1.png',
-                                            width: 80,
-                                            height: 80,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                    ],
                                   ),
                                 ),
 
-                                const SizedBox(height: 16),
-
-                                // Card Lavage extérieur
-                                GestureDetector(
-                                  onTap: () {
-                                    // Navigation vers AjouterVehicule sans prix
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => AjouterVehicule(
-                                          clientId: widget.clientId,
-                                          typeLavage: "Lavage extérieur",
-                                          typePrestation: "extérieur",
-                                          clientData: widget.clientData,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  child: Container(
-                                    width: 345.563,
-                                    height: 165.396,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(12),
-                                      gradient: const RadialGradient(
-                                        center: Alignment.center,
-                                        radius: 1.0,
-                                        colors: [
-                                          Color(0xFFFF7800),
-                                          Color(0xFFE84B00),
-                                        ],
-                                        stops: [0.0, 1.0],
-                                      ),
-                                    ),
-                                    child: Stack(
+                                // NOUVEAU : Cartes de services générées dynamiquement
+                                ..._services.map((service) => Column(
                                       children: [
-                                        // Titre en haut à gauche
-                                        const Positioned(
-                                          top: 16,
-                                          left: 31,
-                                          child: Text(
-                                            "Lavage extérieur",
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontFamily: "Poppins",
-                                              fontSize: 25.053,
-                                              fontWeight: FontWeight.w700,
-                                              letterSpacing: -1.069,
-                                            ),
-                                          ),
+                                        _buildServiceCard(
+                                          title: service['title'],
+                                          description: service['description'],
+                                          price: _getFormattedPrice(
+                                              tarifsData, service['apiKey']),
+                                          color: service['color'],
+                                          icon: service['icon'],
+                                          features: service['features'],
+                                          onTap: () => _navigateToVehicle(
+                                              service['title'],
+                                              service['apiKey']),
                                         ),
-                                        const Positioned(
-                                          top: 60,
-                                          left: 31,
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                "✅ Nettoyage extérieur",
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontFamily: "DM Sans",
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.w500,
-                                                  height: 14 / 9,
-                                                  letterSpacing: -0.3,
-                                                ),
-                                              ),
-                                              SizedBox(height: 4),
-                                              Text(
-                                                "✅ Nettoyage des vitres",
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontFamily: "DM Sans",
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.w500,
-                                                  height: 14 / 9,
-                                                  letterSpacing: -0.3,
-                                                ),
-                                              ),
-                                              SizedBox(height: 4),
-                                              Text(
-                                                "✅ Nettoyage des roues",
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontFamily: "DM Sans",
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.w500,
-                                                  height: 14 / 9,
-                                                  letterSpacing: -0.3,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-
-                                        Positioned(
-                                          bottom: 16,
-                                          right: 33,
-                                          child: Container(
-                                            width: 80,
-                                            height: 80,
-                                            decoration: BoxDecoration(
-                                              image: DecorationImage(
-                                                image: AssetImage(
-                                                    'assets/protection 1.png'),
-                                                fit: BoxFit.cover,
-                                                alignment: Alignment.center,
-                                              ),
-                                              color: const Color(0xFFD3D3D3),
-                                            ),
-                                          ),
-                                        ),
+                                        if (_services.indexOf(service) <
+                                            _services.length - 1)
+                                          const SizedBox(height: 16),
                                       ],
-                                    ),
-                                  ),
-                                ),
-
-                                const SizedBox(height: 16),
-
-                                // Card Lavage premium
-                                GestureDetector(
-                                  onTap: () {
-                                    // Navigation vers AjouterVehicule sans prix
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => AjouterVehicule(
-                                          clientId: widget.clientId,
-                                          typeLavage: "LAVAGE PREMIUM",
-                                          typePrestation: "premium",
-                                          clientData: widget.clientData,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  child: Container(
-                                    width: 345.563,
-                                    height: 165.396,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(12),
-                                      gradient: const RadialGradient(
-                                        center: Alignment.center,
-                                        radius: 1.0,
-                                        colors: [
-                                          Color(0xFF00A2FF),
-                                          Color(0xFF009BCF),
-                                        ],
-                                        stops: [0.0, 1.0],
-                                      ),
-                                    ),
-                                    child: Stack(
-                                      children: [
-                                        const Positioned(
-                                          top: 16,
-                                          left: 31,
-                                          child: Text(
-                                            "LAVAGE PREMIUM",
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontFamily: "Poppins",
-                                              fontSize: 25.053,
-                                              fontWeight: FontWeight.w700,
-                                              letterSpacing: -1.069,
-                                            ),
-                                          ),
-                                        ),
-
-                                        const Positioned(
-                                          top: 60,
-                                          left: 31,
-                                          child: Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    "✅ Nettoyage extérieur",
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontFamily: "DM Sans",
-                                                      fontSize: 9,
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                      height: 14 / 9,
-                                                      letterSpacing: -0.3,
-                                                    ),
-                                                  ),
-                                                  SizedBox(height: 4),
-                                                  Text(
-                                                    "✅ Nettoyage des vitres",
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontFamily: "DM Sans",
-                                                      fontSize: 9,
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                      height: 14 / 9,
-                                                      letterSpacing: -0.3,
-                                                    ),
-                                                  ),
-                                                  SizedBox(height: 4),
-                                                  Text(
-                                                    "✅ Nettoyage des roues",
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontFamily: "DM Sans",
-                                                      fontSize: 9,
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                      height: 14 / 9,
-                                                      letterSpacing: -0.3,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-
-                                              SizedBox(width: 20),
-
-                                              // Deuxième colonne
-                                              Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    "✅ Nettoyage intérieur",
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontFamily: "DM Sans",
-                                                      fontSize: 9,
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                      height: 14 / 9,
-                                                      letterSpacing: -0.3,
-                                                    ),
-                                                  ),
-                                                  SizedBox(height: 4),
-                                                  Text(
-                                                    "✅ Tableau de bord",
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontFamily: "DM Sans",
-                                                      fontSize: 9,
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                      height: 14 / 9,
-                                                      letterSpacing: -0.3,
-                                                    ),
-                                                  ),
-                                                  SizedBox(height: 4),
-                                                  Text(
-                                                    "✅ Aspirateur",
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontFamily: "DM Sans",
-                                                      fontSize: 9,
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                      height: 14 / 9,
-                                                      letterSpacing: -0.3,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-
-                                        // Image en bas à droite
-                                        Positioned(
-                                          bottom: 16,
-                                          right: 33,
-                                          child: Image.asset(
-                                            'assets/auto 2.png',
-                                            width: 80,
-                                            height: 80,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
+                                    )),
                               ],
                             ),
                           ),
@@ -1036,7 +922,6 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
           ],
         ),
       ),
-      // AJOUT: Bottom Navigation Bar ici
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
@@ -1047,14 +932,6 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           CircularProgressIndicator(),
-          SizedBox(height: 16),
-          Text(
-            'Chargement des tarifs...',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
         ],
       ),
     );
@@ -1065,25 +942,31 @@ class _ReserverLavagePageState extends State<ReserverLavagePage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
+          Icon(
             Icons.error_outline,
             size: 64,
-            color: Colors.red,
+            color: _cardColor2,
           ),
           const SizedBox(height: 16),
           Text(
             errorMessage,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w500,
-              color: Colors.red,
+              color: _primaryColor,
             ),
           ),
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _fetchTarifs,
-            child: const Text('Réessayer'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _accentColor,
+            ),
+            child: const Text(
+              'Réessayer',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),

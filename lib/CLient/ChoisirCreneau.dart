@@ -12,6 +12,7 @@ import 'package:glitty/CLient/ParrainagePage.dart';
 import 'package:glitty/CLient/PortefeuillePage.dart';
 import 'package:glitty/CLient/ReserverLavagePage.dart';
 import 'package:glitty/WelcomePage.dart';
+import 'package:glitty/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'RecapCommande.dart';
 import 'ClientAccueil.dart';
@@ -23,6 +24,7 @@ class ChoisirCreneau extends StatefulWidget {
   final Map<String, dynamic>? clientData;
   final List<File>? photos;
   final String? token;
+  final double prix;
 
   const ChoisirCreneau({
     super.key,
@@ -32,6 +34,7 @@ class ChoisirCreneau extends StatefulWidget {
     this.clientData,
     this.photos,
     this.token,
+    required this.prix,
   });
 
   @override
@@ -109,31 +112,28 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
     return months[selectedDateTime.month - 1];
   }
 
-  // Fonction pour valider et formater l'heure
+  // NOUVELLE FONCTION : Valider et formater l'heure seulement quand nécessaire
   void _validateAndSetTime() {
     String hour = _hourController.text;
     String minute = _minuteController.text;
 
-    // Validation de l'heure
-    if (hour.isEmpty) hour = "08";
-    int hourInt = int.tryParse(hour) ?? 8;
-    if (hourInt < 8) hourInt = 8;
-    if (hourInt > 23) hourInt = 23;
-    if (selectedTime == "matin" && hourInt > 11) hourInt = 11;
-    if (selectedTime == "apres-midi" && hourInt < 12) hourInt = 12;
-
-    // Validation des minutes
-    if (minute.isEmpty) minute = "00";
-    int minuteInt = int.tryParse(minute) ?? 0;
-    if (minuteInt < 0) minuteInt = 0;
-    if (minuteInt > 59) minuteInt = 59;
-
-    setState(() {
+    // Validation de l'heure - seulement si nécessaire
+    if (hour.isNotEmpty) {
+      int hourInt = int.tryParse(hour) ?? 0;
+      if (hourInt < 0) hourInt = 0;
+      if (hourInt > 23) hourInt = 23;
       selectedHour = hourInt.toString().padLeft(2, '0');
+    }
+
+    // Validation des minutes - seulement si nécessaire
+    if (minute.isNotEmpty) {
+      int minuteInt = int.tryParse(minute) ?? 0;
+      if (minuteInt < 0) minuteInt = 0;
+      if (minuteInt > 59) minuteInt = 59;
       selectedMinute = minuteInt.toString().padLeft(2, '0');
-      _hourController.text = selectedHour;
-      _minuteController.text = selectedMinute;
-    });
+    }
+
+    setState(() {});
   }
 
   // Fonction pour obtenir l'heure formatée
@@ -144,7 +144,18 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
   void _navigateToLocation() {
     final formattedDate = _getFormattedDate();
     final creneauForAPI = _getCreneauForAPI();
-    final formattedTime = _getFormattedTime();
+
+    // Validation finale avant navigation
+    String finalHour =
+        _hourController.text.isEmpty ? "08" : _hourController.text;
+    String finalMinute =
+        _minuteController.text.isEmpty ? "00" : _minuteController.text;
+
+    // Formater avec padding
+    finalHour = finalHour.padLeft(2, '0');
+    finalMinute = finalMinute.padLeft(2, '0');
+
+    final formattedTime = "$finalHour:$finalMinute";
 
     Navigator.push(
       context,
@@ -154,9 +165,11 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
           typeLavage: widget.typeLavage,
           vehicleData: widget.vehicleData,
           clientData: widget.clientData,
+          photos: widget.photos,
           date: formattedDate,
           creneau: creneauForAPI,
-          //  heurePrecise: formattedTime,
+          heure: formattedTime,
+          prix: widget.prix,
         ),
       ),
     );
@@ -168,6 +181,7 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
     // Initialiser les contrôleurs avec les valeurs par défaut
     _hourController.text = selectedHour;
     _minuteController.text = selectedMinute;
+    print('Prix: ${widget.prix}');
   }
 
   @override
@@ -177,7 +191,7 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
     super.dispose();
   }
 
-  // AJOUT: Méthode pour construire le Drawer
+  // Méthode pour construire le Drawer
   Widget _buildClientDrawer(BuildContext context) {
     const dark = Color(0xFF022519);
     const accentColor = Color(0xFF4CAF50);
@@ -378,16 +392,53 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
                         false,
                         Colors.red,
                         () async {
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.remove('token');
-                          await prefs.remove('userData');
-
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const WelcomePage()),
-                            (route) => false,
+                          // Afficher une boîte de dialogue de confirmation
+                          final shouldLogout = await showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text("Déconnexion"),
+                                content: const Text(
+                                    "Êtes-vous sûr de vouloir vous déconnecter ?"),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    child: const Text("Annuler"),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(true),
+                                    child: const Text(
+                                      "Déconnexion",
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           );
+
+                          if (shouldLogout == true) {
+                            // Utiliser AuthService pour la déconnexion
+                            await AuthService.logout();
+
+                            // Navigation vers la page d'accueil
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const WelcomePage()),
+                              (route) => false,
+                            );
+
+                            // Optionnel : Afficher un message de confirmation
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Déconnexion réussie"),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
                         },
                       ),
                     ),
@@ -401,7 +452,7 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
     );
   }
 
-  // AJOUT: Méthode pour construire un item du Drawer
+  // Méthode pour construire un item du Drawer
   Widget _buildDrawerItem(IconData icon, String title, bool isActive,
       Color color, VoidCallback onTap) {
     return Container(
@@ -430,7 +481,7 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
     );
   }
 
-  // AJOUT: Méthode pour construire la bottom navigation bar
+  // Méthode pour construire la bottom navigation bar
   Widget _buildBottomNavigationBar() {
     final double iconSize = 24;
     final double containerSize = 40;
@@ -574,7 +625,7 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
     const dark = Color(0xFF022519);
 
     return Scaffold(
-      // AJOUT: Drawer ici
+      // Drawer ici
       drawer: _buildClientDrawer(context),
       backgroundColor: dark,
       body: SafeArea(
@@ -592,7 +643,7 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // AJOUT: Builder pour accéder au contexte du Scaffold
+                      // Builder pour accéder au contexte du Scaffold
                       Builder(
                         builder: (context) => GestureDetector(
                           onTap: () => Scaffold.of(context).openDrawer(),
@@ -620,7 +671,7 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      // AJOUT: Bouton de retour avec flèche complète
+                      // Bouton de retour avec flèche complète
                       GestureDetector(
                         onTap: () {
                           Navigator.pushReplacement(
@@ -1014,12 +1065,6 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
                               isSelected: selectedTime == "matin",
                               onTap: () {
                                 _selectTime("matin");
-                                // Ajuster l'heure pour le matin
-                                if (int.parse(selectedHour) > 11) {
-                                  selectedHour = "08";
-                                  _hourController.text = selectedHour;
-                                }
-                                _validateAndSetTime();
                               },
                               width: 120,
                             ),
@@ -1030,12 +1075,6 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
                               isSelected: selectedTime == "apres-midi",
                               onTap: () {
                                 _selectTime("apres-midi");
-                                // Ajuster l'heure pour l'après-midi
-                                if (int.parse(selectedHour) < 12) {
-                                  selectedHour = "12";
-                                  _hourController.text = selectedHour;
-                                }
-                                _validateAndSetTime();
                               },
                               width: 140,
                             ),
@@ -1063,7 +1102,7 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
                       ),
                       const SizedBox(height: 12),
 
-                      // Inputs pour l'heure et les minutes
+                      // Inputs pour l'heure et les minutes - CORRIGÉS
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -1102,7 +1141,15 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
                                 fontWeight: FontWeight.w400,
                               ),
                               onChanged: (value) {
-                                _validateAndSetTime();
+                                // Navigation automatique vers les minutes
+                                if (value.length == 2) {
+                                  FocusScope.of(context).nextFocus();
+                                }
+                                // Mettre à jour l'heure sélectionnée
+                                selectedHour = value.isNotEmpty
+                                    ? value.padLeft(2, '0')
+                                    : "08";
+                                setState(() {});
                               },
                             ),
                           ),
@@ -1151,7 +1198,11 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
                                 fontWeight: FontWeight.w400,
                               ),
                               onChanged: (value) {
-                                _validateAndSetTime();
+                                // Mettre à jour les minutes sélectionnées
+                                selectedMinute = value.isNotEmpty
+                                    ? value.padLeft(2, '0')
+                                    : "00";
+                                setState(() {});
                               },
                             ),
                           ),
@@ -1160,9 +1211,7 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
 
                       const SizedBox(height: 8),
                       Text(
-                        selectedTime == "matin"
-                            ? "Heures disponibles: 08h - 11h"
-                            : "Heures disponibles: 12h - 17h",
+                        "Heure libre - 24h/24",
                         style: const TextStyle(
                           color: Color(0xFF8F92A1),
                           fontFamily: "DM Sans",
@@ -1245,7 +1294,7 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
           ],
         ),
       ),
-      // AJOUT: Bottom Navigation Bar ici
+      // Bottom Navigation Bar ici
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
@@ -1278,9 +1327,9 @@ class _ChoisirCreneauState extends State<ChoisirCreneau> {
   String _getTimeDisplay(String time) {
     switch (time) {
       case "matin":
-        return "Matin (8h-12h)";
+        return "Matin";
       case "apres-midi":
-        return "Après-midi (12h-17h)";
+        return "Après-midi";
       default:
         return time;
     }

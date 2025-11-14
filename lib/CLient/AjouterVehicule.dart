@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:glitty/CLient/ReserverLavagePage.dart';
+import 'package:glitty/services/auth_service.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'ChoisirCreneau.dart';
@@ -12,6 +13,7 @@ import 'package:glitty/CLient/PortefeuillePage.dart';
 import 'package:glitty/WelcomePage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'ClientAccueil.dart';
+import 'package:glitty/services/commande_service.dart';
 
 class AjouterVehicule extends StatefulWidget {
   final int clientId;
@@ -20,13 +22,21 @@ class AjouterVehicule extends StatefulWidget {
   final Map<String, dynamic>? clientData;
   final String? token;
 
-  const AjouterVehicule(
-      {super.key,
-      required this.clientId,
-      required this.typeLavage,
-      required this.typePrestation,
-      this.clientData,
-      this.token});
+  final Map<String, dynamic>? existingVehicleData;
+  final List<File>? existingPhotos;
+  final double? existingPrix;
+
+  const AjouterVehicule({
+    super.key,
+    required this.clientId,
+    required this.typeLavage,
+    required this.typePrestation,
+    this.clientData,
+    this.token,
+    this.existingVehicleData,
+    this.existingPhotos,
+    this.existingPrix,
+  });
 
   @override
   State<AjouterVehicule> createState() => _AjouterVehiculeState();
@@ -38,7 +48,235 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
   final TextEditingController _descriptionController = TextEditingController();
   String? _selectedVehicleType;
   List<File> _selectedPhotos = [];
-  int _currentIndex = 0;
+
+  // Variables pour le prix
+  double? _prix;
+  bool _isLoadingPrix = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeExistingData();
+  }
+
+  // NOUVELLE MÉTHODE: Initialiser avec les données existantes
+  void _initializeExistingData() {
+    print('🔄 Initialisation des données existantes...');
+
+    // Si des données existantes sont fournies, les initialiser
+    if (widget.existingVehicleData != null) {
+      _immatriculationController.text =
+          widget.existingVehicleData!['immatriculation'] ?? '';
+      _descriptionController.text =
+          widget.existingVehicleData!['description'] ?? '';
+      _selectedVehicleType = widget.existingVehicleData!['type'];
+
+      print('✅ Données véhicule chargées:');
+      print('   - Immatriculation: ${_immatriculationController.text}');
+      print('   - Type: $_selectedVehicleType');
+      print('   - Description: ${_descriptionController.text}');
+    }
+
+    // Initialiser les photos existantes
+    if (widget.existingPhotos != null && widget.existingPhotos!.isNotEmpty) {
+      _selectedPhotos.addAll(widget.existingPhotos!);
+      print('✅ ${_selectedPhotos.length} photo(s) chargée(s)');
+    }
+
+    // Gérer le prix
+    if (widget.existingPrix != null) {
+      _prix = widget.existingPrix;
+      print('✅ Prix existant chargé: $_prix');
+    } else if (_selectedVehicleType != null) {
+      // Si pas de prix mais type de véhicule, recalculer
+      print('🔄 Recalcul du prix...');
+      _fetchPrix();
+    }
+  }
+
+  // Fonction pour récupérer le prix selon le véhicule et la prestation
+  Future<void> _fetchPrix() async {
+    if (_selectedVehicleType == null) return;
+
+    setState(() {
+      _isLoadingPrix = true;
+    });
+
+    try {
+      String typeVehiculeApi = _convertVehicleTypeToApi(_selectedVehicleType!);
+      String typePrestationApi =
+          _convertPrestationTypeToApi(widget.typePrestation);
+
+      print('🔄 Récupération prix pour: $typeVehiculeApi - $typePrestationApi');
+
+      final result = await CommandeService.getPrix(
+        typeVehicule: typeVehiculeApi,
+        typePrestation: typePrestationApi,
+      );
+
+      print('📦 Résultat API complet: $result');
+
+      if (result['success'] == true && result['data'] != null) {
+        double? prixTrouve;
+
+        // Essayer différentes structures de données possibles
+        if (result['data']['data'] != null &&
+            result['data']['data']['prix'] != null) {
+          prixTrouve = _parsePrix(result['data']['data']['prix']);
+          print('✅ Prix trouvé dans data.data.prix: $prixTrouve');
+        } else if (result['data']['prix'] != null) {
+          prixTrouve = _parsePrix(result['data']['prix']);
+          print('✅ Prix trouvé dans data.prix: $prixTrouve');
+        } else if (result['prix'] != null) {
+          prixTrouve = _parsePrix(result['prix']);
+          print('✅ Prix trouvé dans result.prix: $prixTrouve');
+        }
+
+        if (prixTrouve != null) {
+          setState(() {
+            _prix = prixTrouve;
+          });
+          print('🎯 Prix final: $_prix');
+        } else {
+          print('❌ Aucun prix trouvé dans la réponse');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Prix non disponible pour cette combinaison"),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      } else {
+        print('❌ Erreur récupération prix: ${result['error']}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Erreur: ${result['error'] ?? 'Erreur inconnue'}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (error) {
+      print('❌ Erreur fetchPrix: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Erreur de connexion: $error"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isLoadingPrix = false;
+      });
+    }
+  }
+
+  // Méthode utilitaire pour parser le prix depuis différents types
+  double? _parsePrix(dynamic prixValue) {
+    if (prixValue == null) return null;
+
+    try {
+      if (prixValue is num) {
+        return prixValue.toDouble();
+      } else if (prixValue is String) {
+        return double.tryParse(prixValue);
+      } else {
+        return double.tryParse(prixValue.toString());
+      }
+    } catch (e) {
+      print('❌ Erreur parsing prix: $e');
+      return null;
+    }
+  }
+
+  // Fonctions de conversion
+  String _convertVehicleTypeToApi(String vehicleType) {
+    switch (vehicleType.toLowerCase()) {
+      case 'citadine':
+        return 'citadine';
+      case 'suv':
+        return 'suv';
+      case 'moto':
+        return 'moto';
+      default:
+        return 'citadine';
+    }
+  }
+
+  String _convertPrestationTypeToApi(String prestationType) {
+    switch (prestationType.toLowerCase()) {
+      case 'lavage_interieur':
+        return 'lavage_interieur';
+      case 'lavage_exterieur':
+        return 'lavage_exterieur';
+      case 'lavage_complet':
+        return 'lavage_complet';
+      default:
+        return 'lavage_interieur';
+    }
+  }
+
+  // Widget pour afficher le prix
+  Widget _buildPrixDisplay() {
+    if (_isLoadingPrix) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4FBF67)),
+              ),
+            ),
+            SizedBox(width: 8),
+            Text(
+              'Calcul du prix...',
+              style: TextStyle(
+                fontSize: 14,
+                color: Color(0xFF4FBF67),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_prix != null) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Color(0xFF4FBF67).withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Color(0xFF4FBF67).withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.euro_symbol,
+              color: Color(0xFF4FBF67),
+              size: 20,
+            ),
+            SizedBox(width: 8),
+            Text(
+              'Prix: ${_prix!.toStringAsFixed(2)}€',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF022519),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SizedBox();
+  }
 
   // Fonction pour sélectionner des photos depuis la galerie
   Future<void> _selectPhotosFromGallery() async {
@@ -117,7 +355,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Titre
               Container(
                 padding: const EdgeInsets.all(20),
                 child: const Text(
@@ -128,7 +365,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                   ),
                 ),
               ),
-              // Option Galerie
               ListTile(
                 leading:
                     const Icon(Icons.photo_library, color: Color(0xFF4FBF67)),
@@ -139,7 +375,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                   _selectPhotosFromGallery();
                 },
               ),
-              // Option Caméra
               ListTile(
                 leading: const Icon(Icons.camera_alt, color: Color(0xFF4FBF67)),
                 title: const Text("Appareil photo"),
@@ -157,7 +392,7 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
     );
   }
 
-  // AJOUT: Méthode pour construire le Drawer
+  // Méthode pour construire le Drawer
   Widget _buildClientDrawer(BuildContext context) {
     const dark = Color(0xFF022519);
     const accentColor = Color(0xFF4CAF50);
@@ -174,7 +409,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
         ),
         child: Column(
           children: [
-            // En-tête du Drawer
             Container(
               height: 200,
               padding: const EdgeInsets.all(20),
@@ -232,7 +466,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                 ],
               ),
             ),
-            // Contenu du Drawer
             Expanded(
               child: Container(
                 decoration: const BoxDecoration(
@@ -355,16 +588,53 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                         false,
                         Colors.red,
                         () async {
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.remove('token');
-                          await prefs.remove('userData');
-
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const WelcomePage()),
-                            (route) => false,
+                          // Afficher une boîte de dialogue de confirmation
+                          final shouldLogout = await showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text("Déconnexion"),
+                                content: const Text(
+                                    "Êtes-vous sûr de vouloir vous déconnecter ?"),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    child: const Text("Annuler"),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(true),
+                                    child: const Text(
+                                      "Déconnexion",
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           );
+
+                          if (shouldLogout == true) {
+                            // Utiliser AuthService pour la déconnexion
+                            await AuthService.logout();
+
+                            // Navigation vers la page d'accueil
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const WelcomePage()),
+                              (route) => false,
+                            );
+
+                            // Optionnel : Afficher un message de confirmation
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Déconnexion réussie"),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
                         },
                       ),
                     ),
@@ -378,7 +648,7 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
     );
   }
 
-  // AJOUT: Méthode pour construire un item du Drawer
+  // Méthode pour construire un item du Drawer
   Widget _buildDrawerItem(IconData icon, String title, bool isActive,
       Color color, VoidCallback onTap) {
     return Container(
@@ -407,7 +677,7 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
     );
   }
 
-  // AJOUT: Méthode pour construire la bottom navigation bar
+  // Méthode pour construire la bottom navigation bar
   Widget _buildBottomNavigationBar() {
     final double iconSize = 24;
     final double containerSize = 40;
@@ -418,7 +688,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // Icône Home
           GestureDetector(
             onTap: () {
               Navigator.pushReplacement(
@@ -431,108 +700,80 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
               );
             },
             child: Container(
-              width: containerSize,
-              height: containerSize,
-              decoration: BoxDecoration(
-                color: _currentIndex == 0 ? Colors.green : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
               child: Center(
                 child: SvgPicture.asset(
                   'assets/icone-home.svg',
                   width: iconSize,
                   height: iconSize,
-                  color: _currentIndex == 0 ? Colors.white : Colors.grey[400],
+                  color: Colors.grey[400],
                 ),
               ),
             ),
           ),
-
-          // Icône Commandes
           GestureDetector(
             onTap: () {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ClientAccueil(
+                  builder: (context) => MesCommandesPage(
                     clientData: widget.clientData,
+                    clientId: widget.clientData?['id'],
                   ),
                 ),
               );
             },
             child: Container(
-              width: containerSize,
-              height: containerSize,
-              decoration: BoxDecoration(
-                color: _currentIndex == 1 ? Colors.green : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
               child: Center(
                 child: SvgPicture.asset(
                   'assets/icone2.svg',
                   width: iconSize,
                   height: iconSize,
-                  color: _currentIndex == 1 ? Colors.white : Colors.grey[400],
+                  color: Colors.grey[400],
                 ),
               ),
             ),
           ),
-
-          // Icône Portefeuille
           GestureDetector(
             onTap: () {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ClientAccueil(
+                  builder: (context) => PortefeuillePage(
                     clientData: widget.clientData,
+                    clientId: widget.clientData?['id'],
                   ),
                 ),
               );
             },
             child: Container(
-              width: containerSize,
-              height: containerSize,
-              decoration: BoxDecoration(
-                color: _currentIndex == 2 ? Colors.green : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
               child: Center(
                 child: SvgPicture.asset(
                   'assets/icone3.svg',
                   width: iconSize,
                   height: iconSize,
-                  color: _currentIndex == 2 ? Colors.white : Colors.grey[400],
+                  color: Colors.grey[400],
                 ),
               ),
             ),
           ),
-
-          // Icône Profil
           GestureDetector(
             onTap: () {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ClientAccueil(
+                  builder: (context) => MonProfile(
                     clientData: widget.clientData,
                   ),
                 ),
               );
             },
             child: Container(
-              width: containerSize,
-              height: containerSize,
-              decoration: BoxDecoration(
-                color: _currentIndex == 3 ? Colors.green : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
               child: Center(
                 child: SvgPicture.asset(
                   'assets/icone4.svg',
                   width: iconSize,
                   height: iconSize,
-                  color: _currentIndex == 3 ? Colors.white : Colors.grey[400],
+                  color: Colors.grey[400],
                 ),
               ),
             ),
@@ -547,13 +788,11 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
     const dark = Color(0xFF022519);
 
     return Scaffold(
-      // AJOUT: Drawer ici
       drawer: _buildClientDrawer(context),
       backgroundColor: dark,
       body: SafeArea(
         child: Column(
           children: [
-            // Partie supérieure : fixe à 100
             Container(
               height: 180,
               width: double.infinity,
@@ -561,11 +800,9 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Column(
                 children: [
-                  // Première ligne : icônes menu, logo, notification
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // AJOUT: Builder pour accéder au contexte du Scaffold
                       Builder(
                         builder: (context) => GestureDetector(
                           onTap: () => Scaffold.of(context).openDrawer(),
@@ -590,9 +827,7 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 16),
-
                   Row(
                     children: [
                       GestureDetector(
@@ -623,9 +858,9 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                             ],
                           ),
                           child: const Icon(
-                            Icons.arrow_back_rounded, // Flèche complète
+                            Icons.arrow_back_rounded,
                             color: Color(0xFF022519),
-                            size: 24, // Taille augmentée
+                            size: 24,
                           ),
                         ),
                       ),
@@ -653,8 +888,7 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                               border: InputBorder.none,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 12,
-                                vertical:
-                                    12, // AJOUT: Padding vertical pour centrer
+                                vertical: 12,
                               ),
                               isDense: true,
                             ),
@@ -666,7 +900,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                 ],
               ),
             ),
-
             Expanded(
               child: Container(
                 width: double.infinity,
@@ -694,14 +927,11 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                         ),
                       ),
                       const SizedBox(height: 16),
-
-                      // Nouvelle ligne : Gestion du véhicule
                       Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            // Partie gauche : icône + titre
                             Row(
                               children: [
                                 Image.asset(
@@ -724,8 +954,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                                 ),
                               ],
                             ),
-
-                            // Bouton Ajouter des photos à droite
                             Container(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(19.5),
@@ -764,8 +992,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                           ],
                         ),
                       ),
-
-                      // Paragraphe sous "Gestion du véhicule"
                       Container(
                         width: double.infinity,
                         margin: const EdgeInsets.only(bottom: 20),
@@ -781,8 +1007,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                           ),
                         ),
                       ),
-
-                      // Section des photos sélectionnées
                       if (_selectedPhotos.isNotEmpty)
                         Container(
                           width: double.infinity,
@@ -894,14 +1118,12 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                             ],
                           ),
                         ),
-
                       Container(
                         width: 319,
                         margin: const EdgeInsets.only(bottom: 20),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Label Immatriculation
                             const Text(
                               "IMMATRICULATION",
                               style: TextStyle(
@@ -914,7 +1136,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            // Input field
                             Container(
                               width: 319,
                               height: 46,
@@ -950,15 +1171,12 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                           ],
                         ),
                       ),
-
-                      // Input Type de véhicule avec Bottom Sheet
                       Container(
                         width: 319,
                         margin: const EdgeInsets.only(bottom: 20),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Label Type de véhicule
                             const Text(
                               "TYPE DE VÉHICULE",
                               style: TextStyle(
@@ -971,7 +1189,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            // Input field qui ouvre le bottom sheet
                             GestureDetector(
                               onTap: () {
                                 _showVehicleTypeBottomSheet(context);
@@ -1020,15 +1237,12 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                           ],
                         ),
                       ),
-
-                      // Input Description
                       Container(
                         width: 319,
                         margin: const EdgeInsets.only(bottom: 20),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Label Description
                             const Text(
                               "DESCRIPTION",
                               style: TextStyle(
@@ -1041,7 +1255,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            // Input field
                             Container(
                               width: 319,
                               height: 80,
@@ -1079,11 +1292,10 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                           ],
                         ),
                       ),
-
-                      // Bouton Suivant
+                      _buildPrixDisplay(),
+                      const SizedBox(height: 16),
                       GestureDetector(
                         onTap: () {
-                          // Vérifier que les champs obligatoires sont remplis
                           if (_immatriculationController.text.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
@@ -1106,7 +1318,16 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                             return;
                           }
 
-                          // Préparer les données du véhicule
+                          if (_prix == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Calcul du prix en cours..."),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
+                            return;
+                          }
+
                           Map<String, dynamic> vehicleData = {
                             'type': _selectedVehicleType!,
                             'immatriculation': _immatriculationController.text,
@@ -1114,6 +1335,8 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                                 ? null
                                 : _descriptionController.text,
                           };
+
+                          print('💰 Prix transmis à ChoisirCreneau: $_prix');
 
                           Navigator.push(
                             context,
@@ -1125,15 +1348,16 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                                 vehicleData: vehicleData,
                                 clientData: widget.clientData,
                                 photos: _selectedPhotos,
+                                prix: _prix!,
                               ),
                             ),
                           );
                         },
                         child: Container(
-                          width: 160,
-                          height: 39,
+                          width: 295,
+                          height: 56,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(16),
                             color: const Color(0xFF4FBF67),
                           ),
                           child: const Center(
@@ -1142,10 +1366,10 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                               style: TextStyle(
                                 color: Colors.white,
                                 fontFamily: "DM Sans",
-                                fontSize: 22,
+                                fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                height: 32 / 22,
-                                letterSpacing: -0.4,
+                                height: 24 / 14,
+                                letterSpacing: -0.3,
                               ),
                             ),
                           ),
@@ -1159,7 +1383,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
           ],
         ),
       ),
-      // AJOUT: Bottom Navigation Bar ici
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
@@ -1181,7 +1404,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Titre
               const Text(
                 "Sélectionner votre type de véhicule",
                 style: TextStyle(
@@ -1194,8 +1416,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                 ),
               ),
               const SizedBox(height: 12),
-
-              // Paragraphe
               const Text(
                 "Différents types de véhicules peuvent être lavés à des tarifs différents",
                 style: TextStyle(
@@ -1208,13 +1428,12 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                 ),
               ),
               const SizedBox(height: 24),
-
-              // Option 1 - Citadine
               GestureDetector(
                 onTap: () {
                   setState(() {
                     _selectedVehicleType = "Citadine";
                   });
+                  _fetchPrix();
                   Navigator.pop(context);
                 },
                 child: Column(
@@ -1250,13 +1469,12 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Option 2 - SUV
               GestureDetector(
                 onTap: () {
                   setState(() {
                     _selectedVehicleType = "SUV";
                   });
+                  _fetchPrix();
                   Navigator.pop(context);
                 },
                 child: Column(
@@ -1292,13 +1510,12 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Option 3 - Moto
               GestureDetector(
                 onTap: () {
                   setState(() {
                     _selectedVehicleType = "Moto";
                   });
+                  _fetchPrix();
                   Navigator.pop(context);
                 },
                 child: Column(
@@ -1333,7 +1550,6 @@ class _AjouterVehiculeState extends State<AjouterVehicule> {
                   ],
                 ),
               ),
-
               const SizedBox(height: 20),
             ],
           ),
