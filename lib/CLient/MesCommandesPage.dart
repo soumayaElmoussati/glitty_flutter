@@ -12,6 +12,7 @@ import 'MesCommandesPage.dart';
 import 'PortefeuillePage.dart';
 import 'ParrainagePage.dart';
 import '../WelcomePage.dart';
+import 'DetailCommandePage.dart'; // Importez la nouvelle page
 
 class MesCommandesPage extends StatefulWidget {
   final Map<String, dynamic>? clientData;
@@ -163,7 +164,27 @@ class _MesCommandesPageState extends State<MesCommandesPage> {
     }
   }
 
-  //
+  // Méthode pour formater le mode de paiement
+  String _formatMethodPaiement(String? method) {
+    switch (method) {
+      case 'espece':
+        return 'Espèces';
+      case 'carte':
+        return 'Carte';
+      case 'virement':
+        return 'Virement';
+      case 'mobile_money':
+        return 'Mobile Money';
+      case 'solde_glitty':
+        return 'Solde Glitty';
+      case 'mixte':
+        return 'Mixte';
+      case 'mixte_espece':
+        return 'Mixte espèces';
+      default:
+        return method ?? 'Non spécifié';
+    }
+  }
 
   Widget _buildBottomNavigationBar() {
     final double iconSize = 24;
@@ -546,7 +567,8 @@ class _MesCommandesPageState extends State<MesCommandesPage> {
     );
   }
 
-  // Méthode pour construire un item de commande dynamique
+  // Méthode pour construire un item de commande avec navigation vers les détails
+// Méthode pour construire un item de commande avec navigation vers les détails
   Widget _buildCommandeItem(Map<String, dynamic> commande) {
     final typeLavage = _formatTypeLavage(commande['type_lavage']);
     final prix = commande['prix'];
@@ -558,118 +580,181 @@ class _MesCommandesPageState extends State<MesCommandesPage> {
     final vehicleInfo = commande['vehicle_info'];
     final washerInfo = commande['washer_info'];
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DetailCommandePage(
+              commandeId: commande['id'],
+              clientData: widget.clientData,
+              token: widget.token,
+            ),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+        ).then((value) {
+          // Cette fonction est appelée quand on revient de DetailCommandePage
+          if (value == true) {
+            // Rafraîchir les données
+            _loadCommandes();
+          }
+        });
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.local_car_wash,
+                    color: color,
+                    size: 30,
+                  ),
                 ),
-                child: Icon(
-                  Icons.local_car_wash,
-                  color: color,
-                  size: 30,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      typeLavage,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      "Prix: ${prix}€ • $date",
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    if (vehicleInfo != null)
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        "Véhicule: ${vehicleInfo['type']} - ${vehicleInfo['immatriculation']}",
+                        typeLavage,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: "DM Sans",
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "Prix: ${prix}€ • $date",
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                          fontFamily: "DM Sans",
+                        ),
+                      ),
+                      if (vehicleInfo != null)
+                        Text(
+                          "Véhicule: ${vehicleInfo['type']} - ${vehicleInfo['immatriculation']}",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                            fontFamily: "DM Sans",
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: color),
+                  ),
+                  child: Text(
+                    statut,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: "DM Sans",
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // Informations supplémentaires
+            Row(
+              children: [
+                _buildInfoChip(Icons.access_time, '$creneau • $heureMission'),
+                const SizedBox(width: 8),
+                if (washerInfo != null)
+                  _buildInfoChip(Icons.person, washerInfo['nom'] ?? 'Laveur'),
+              ],
+            ),
+
+            if (commande['depart_adresse'] != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.location_on,
+                      size: 14,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        commande['depart_adresse'],
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.grey,
+                          fontFamily: "DM Sans",
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
+                    ),
                   ],
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: color),
-                ),
-                child: Text(
-                  statut,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+
+            // Indicateur de clic
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    'Voir détails',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF022519),
+                      fontFamily: "DM Sans",
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // Informations supplémentaires
-          Row(
-            children: [
-              _buildInfoChip(Icons.access_time, '$creneau • $heureMission'),
-              const SizedBox(width: 8),
-              if (washerInfo != null)
-                _buildInfoChip(Icons.person, washerInfo['nom'] ?? 'Laveur'),
-            ],
-          ),
-
-          if (commande['depart_adresse'] != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                'Adresse: ${commande['depart_adresse']}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 12,
+                    color: Color(0xFF022519),
+                  ),
+                ],
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
+  //////
 
   Widget _buildInfoChip(IconData icon, String text) {
     return Container(
@@ -688,6 +773,7 @@ class _MesCommandesPageState extends State<MesCommandesPage> {
             style: TextStyle(
               fontSize: 10,
               color: Colors.grey[600],
+              fontFamily: "DM Sans",
             ),
           ),
         ],
@@ -695,7 +781,6 @@ class _MesCommandesPageState extends State<MesCommandesPage> {
     );
   }
 
-  // Le reste du code (Drawer et méthodes associées) reste identique...
   // Méthode pour construire le Drawer (sidebar)
   Widget _buildClientDrawer(BuildContext context) {
     const dark = Color(0xFF022519);

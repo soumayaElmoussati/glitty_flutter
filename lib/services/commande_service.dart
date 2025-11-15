@@ -397,4 +397,33 @@ class CommandeService {
       };
     }
   }
+
+  //
+
+  static Future<Map<String, dynamic>> getCommandeDetail({
+    required int commandeId,
+    required int washerId,
+  }) async {
+    try {
+      final response = await http.get(
+        Uri.parse(
+            '${Env.baseUrl}/api/commande/$commandeId/details-commande?washerId=$washerId'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data;
+      } else {
+        return {
+          'success': false,
+          'error': 'Erreur de chargement: ${response.statusCode}'
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'error': 'Erreur réseau: $e'};
+    }
+  }
 }

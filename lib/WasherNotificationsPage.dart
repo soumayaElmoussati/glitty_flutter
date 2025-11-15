@@ -195,144 +195,152 @@ class _WasherNotificationsPageState extends State<WasherNotificationsPage> {
     final isRead = _isNotificationRead(notification);
     final isCommande = notification['type'] == 'new_commande';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Material(
-        elevation: 2,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isRead ? Colors.white : const Color(0xFFF0F9F0),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isRead ? Colors.grey[200]! : accentColor.withOpacity(0.3),
-              width: 1.5,
-            ),
-          ),
-          child: Stack(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // En-tête de la notification
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: isCommande
-                                ? accentColor.withOpacity(0.1)
-                                : Colors.blue.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            isCommande
-                                ? Icons.cleaning_services_rounded
-                                : Icons.notifications_rounded,
-                            color: isCommande ? accentColor : Colors.blue,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                notification['title'] ??
-                                    'Nouvelle notification',
-                                style: TextStyle(
-                                  fontWeight: isRead
-                                      ? FontWeight.normal
-                                      : FontWeight.bold,
-                                  fontSize: 16,
-                                  color: Colors.black,
-                                  height: 1.3,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                notification['message'] ?? '',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 14,
-                                  height: 1.4,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Détails de la commande
-                    if (isCommande) _buildCommandeDetails(notification),
-
-                    // Actions
-                    if (isCommande) _buildActionButtons(notification),
-
-                    // Date et heure
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.access_time_rounded,
-                          color: Colors.grey[400],
-                          size: 14,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          _formatTime(notification['created_at']),
-                          style: TextStyle(
-                            color: Colors.grey[500],
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const Spacer(),
-                        if (!isRead)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: accentColor.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              'Nouveau',
-                              style: TextStyle(
-                                color: accentColor,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
+    return GestureDetector(
+      onTap: () {
+        if (isCommande) {
+          _viewCommandeDetails(notification);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        child: Material(
+          elevation: 2,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isRead ? Colors.white : const Color(0xFFF0F9F0),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color:
+                    isRead ? Colors.grey[200]! : accentColor.withOpacity(0.3),
+                width: 1.5,
               ),
+            ),
+            child: Stack(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // En-tête de la notification
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: isCommande
+                                  ? accentColor.withOpacity(0.1)
+                                  : Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              isCommande
+                                  ? Icons.cleaning_services_rounded
+                                  : Icons.notifications_rounded,
+                              color: isCommande ? accentColor : Colors.blue,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  notification['title'] ??
+                                      'Nouvelle notification',
+                                  style: TextStyle(
+                                    fontWeight: isRead
+                                        ? FontWeight.normal
+                                        : FontWeight.bold,
+                                    fontSize: 16,
+                                    color: Colors.black,
+                                    height: 1.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  notification['message'] ?? '',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 14,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
 
-              // Indicateur de lecture
-              if (!isRead)
-                Positioned(
-                  top: 16,
-                  right: 16,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF4CAF50),
-                      shape: BoxShape.circle,
-                    ),
+                      // Détails de la commande
+                      if (isCommande) _buildCommandeDetails(notification),
+
+                      // Actions
+                      if (isCommande) _buildActionButtons(notification),
+
+                      // Date et heure
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.access_time_rounded,
+                            color: Colors.grey[400],
+                            size: 14,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _formatTime(notification['created_at']),
+                            style: TextStyle(
+                              color: Colors.grey[500],
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const Spacer(),
+                          if (!isRead)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: accentColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'Nouveau',
+                                style: TextStyle(
+                                  color: accentColor,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-            ],
+
+                // Indicateur de lecture
+                if (!isRead)
+                  Positioned(
+                    top: 16,
+                    right: 16,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF4CAF50),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -483,8 +491,7 @@ class _WasherNotificationsPageState extends State<WasherNotificationsPage> {
           const SizedBox(width: 12),
           Expanded(
             child: OutlinedButton(
-              onPressed: () =>
-                  _rejectCommande(notification['id']), // MODIFICATION ICI
+              onPressed: () => _rejectCommande(notification['id']),
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.red,
                 side: const BorderSide(color: Colors.red),
@@ -513,6 +520,37 @@ class _WasherNotificationsPageState extends State<WasherNotificationsPage> {
     );
   }
 
+  // NOUVELLE MÉTHODE : Voir les détails de la commande
+  void _viewCommandeDetails(dynamic notification) async {
+    final notificationId = notification['id'];
+    final commandeId = notification['commande_id'];
+
+    print('=== NAVIGATION VERS DÉTAILS ===');
+    print('Notification ID: $notificationId');
+    print('Commande ID: $commandeId');
+    print('Washer ID: ${widget.washerId}');
+
+    // Marquer comme lu
+    await NotificationService.markAsRead(notificationId);
+
+    // Naviguer vers la page de détails
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => WasherCommandeDetailPage(
+            commandeId: commandeId,
+            notificationId: notificationId,
+            washerId: widget.washerId,
+          ),
+        ),
+      ).then((_) {
+        // Recharger les notifications quand on revient de la page détails
+        _loadNotifications();
+      });
+    }
+  }
+
   void _rejectCommande(int notificationId) async {
     final result = await NotificationService.rejectCommande(notificationId);
 
@@ -538,9 +576,6 @@ class _WasherNotificationsPageState extends State<WasherNotificationsPage> {
     }
   }
 
-  ///
-  ///
-  // Modifiez la méthode _acceptCommande
   void _acceptCommande(int notificationId, int commandeId) async {
     // Afficher un indicateur de chargement
     showDialog(
@@ -611,7 +646,6 @@ class _WasherNotificationsPageState extends State<WasherNotificationsPage> {
       );
     }
   }
-  //
 
   @override
   Widget build(BuildContext context) {
