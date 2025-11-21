@@ -20,6 +20,7 @@ class WasherSetGPSPage extends StatefulWidget {
     super.key,
     required this.washerId,
     this.washerData,
+    Map<String, dynamic>? commandeData,
   });
 
   @override

@@ -527,13 +527,15 @@ class _ConfirmCommandePageState extends State<ConfirmCommandePage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      // ICÔNE DU MENU MODIFIÉE ICI
                       Builder(
                         builder: (context) => GestureDetector(
                           onTap: () => Scaffold.of(context).openDrawer(),
-                          child: Icon(
-                            Icons.menu_rounded,
+                          child: Image.asset(
+                            'assets/menu-icone.png',
+                            width: 24,
+                            height: 24,
                             color: Colors.white,
-                            size: 24,
                           ),
                         ),
                       ),
@@ -736,8 +738,21 @@ class _ConfirmCommandePageState extends State<ConfirmCommandePage> {
                               ),
                             ),
                             const SizedBox(height: 60),
+
+                            // BOUTON MODIFIÉ : "Mes commandes" au lieu de "Profil"
                             GestureDetector(
-                              onTap: () {},
+                              onTap: () {
+                                // Navigation vers la page MesCommandesPage
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => MesCommandesPage(
+                                      clientId: widget.clientData?['id'] ?? 1,
+                                      clientData: widget.clientData,
+                                    ),
+                                  ),
+                                );
+                              },
                               child: Container(
                                 width: 295,
                                 height: 56,
@@ -751,7 +766,7 @@ class _ConfirmCommandePageState extends State<ConfirmCommandePage> {
                                 ),
                                 child: const Center(
                                   child: Text(
-                                    "Profil",
+                                    "Mes commandes", // TEXTE MODIFIÉ ICI
                                     style: TextStyle(
                                       color: Color(0xFF1B1D21),
                                       fontFamily: "DM Sans",

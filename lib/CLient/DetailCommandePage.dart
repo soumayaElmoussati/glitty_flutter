@@ -3,6 +3,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:glitty/config/env.dart';
+import 'package:glitty/CLient/ClientAccueil.dart';
+import 'package:glitty/CLient/MesCommandesPage.dart';
+import 'package:glitty/CLient/MonProfile.dart';
+import 'package:glitty/CLient/PortefeuillePage.dart';
 
 class DetailCommandePage extends StatefulWidget {
   final int commandeId;
@@ -41,7 +45,7 @@ class _DetailCommandePageState extends State<DetailCommandePage> {
 
       final response = await http.get(
         Uri.parse(
-            '${Env.baseUrl}/api/commande/details-commande/${widget.commandeId}'),
+            '${Env.baseUrl}/api/commande/${widget.commandeId}/details-commande'),
         headers: {
           'Authorization': 'Bearer ${widget.token}',
           'Content-Type': 'application/json',
@@ -241,6 +245,118 @@ class _DetailCommandePageState extends State<DetailCommandePage> {
     } catch (e) {
       return dateString;
     }
+  }
+
+  // NOUVELLE MÉTHODE : Bottom Navigation Bar
+  Widget _buildBottomNavigationBar() {
+    final double iconSize = 24;
+    final double containerSize = 40;
+
+    return Container(
+      height: 80,
+      color: Colors.black,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          GestureDetector(
+            onTap: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ClientAccueil(
+                    clientData: widget.clientData,
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              child: Center(
+                child: SvgPicture.asset(
+                  'assets/icone-home.svg',
+                  width: iconSize,
+                  height: iconSize,
+                  color: Colors.grey[400],
+                ),
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MesCommandesPage(
+                    clientData: widget.clientData,
+                    clientId: widget.clientData?['id'],
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              width: containerSize,
+              height: containerSize,
+              decoration: BoxDecoration(
+                color: Colors.green,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: SvgPicture.asset(
+                  'assets/icone2.svg',
+                  width: iconSize,
+                  height: iconSize,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PortefeuillePage(
+                    clientData: widget.clientData,
+                    clientId: widget.clientData?['id'],
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              child: Center(
+                child: SvgPicture.asset(
+                  'assets/icone3.svg',
+                  width: iconSize,
+                  height: iconSize,
+                  color: Colors.grey[400],
+                ),
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MonProfile(
+                    clientData: widget.clientData,
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              child: Center(
+                child: SvgPicture.asset(
+                  'assets/icone4.svg',
+                  width: iconSize,
+                  height: iconSize,
+                  color: Colors.grey[400],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildHeader() {
@@ -990,6 +1106,8 @@ class _DetailCommandePageState extends State<DetailCommandePage> {
           ),
         ],
       ),
+      // AJOUT DE LA BOTTOM NAVIGATION BAR
+      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 }

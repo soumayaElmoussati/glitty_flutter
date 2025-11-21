@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:glitty/CLient/ClientAccueil.dart';
@@ -45,11 +46,40 @@ void main() async {
   //   Stripe.urlScheme = 'flutterstripe';
   //   await Stripe.instance.applySettings();
   // }
+  await _initializeFirebase();
 
   await _initializeStripe();
 
   runApp(MyApp());
 }
+
+// ✅ NOUVELLE MÉTHODE POUR INITIALISER FIREBASE
+Future<void> _initializeFirebase() async {
+  try {
+    print('🚀 Initialisation Firebase dans main...');
+
+    // Pour web, vous devez fournir les FirebaseOptions
+    if (kIsWeb) {
+      await Firebase.initializeApp(
+        options: const FirebaseOptions(
+            apiKey: "AIzaSyBZvdPQBsMZ8p4R1a9EovJ2cvT36Ml4Sqo",
+            authDomain: "glitty-198d6.firebaseapp.com",
+            projectId: "glitty-198d6",
+            storageBucket: "glitty-198d6.firebasestorage.app",
+            messagingSenderId: "599694088816",
+            appId: "1:599694088816:web:093543dd9f3e6ec211b2b5"),
+      );
+    } else {
+      // Pour mobile, l'initialisation automatique devrait fonctionner
+      await Firebase.initializeApp();
+    }
+
+    print('✅ Firebase initialisé avec succès dans main');
+  } catch (e) {
+    print('❌ Erreur initialisation Firebase dans main: $e');
+  }
+}
+//
 
 Future<void> _initializeStripe() async {
   try {
@@ -98,8 +128,8 @@ class MyApp extends StatelessWidget {
         '/client-suivi-mission': (context) => ClientSuiviMissionPage(),
         '/washer-dashboard': (context) =>
             DashboardWasherPage(nom: 'Washer', washerId: 1),
-        '/checklist-preparation': (context) =>
-            ChecklistPreparationPage(nom: 'Washer', washerId: 1),
+        // '/checklist-preparation': (context) =>
+        //    ChecklistPreparationPage(nom: 'Washer', washerId: 1),
         '/mission-gps': (context) => MissionSuiviPage(),
         '/mission-suivi': (context) => MissionSuiviPage(),
 

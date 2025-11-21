@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "599694088816",
+    "project_id": "glitty-198d6",
+    "storage_bucket": "glitty-198d6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:599694088816:android:10d6edfb2645191b11b2b5",
+        "android_client_info": {
+          "package_name": "com.example.glitty"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAG3bviU7mAh8O776rD4TvQ0NaADLx-t4M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

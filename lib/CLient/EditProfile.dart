@@ -7,7 +7,7 @@ import 'package:glitty/services/auth_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:glitty/config/env.dart';
-import 'package:flutter_stripe/flutter_stripe.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:glitty/CLient/ClientAccueil.dart';
 import 'package:glitty/CLient/MesCommandesPage.dart';

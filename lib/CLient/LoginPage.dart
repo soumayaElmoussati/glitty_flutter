@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:glitty/CLient/ResetPasswordPage.dart';
 import 'package:glitty/WelcomePage.dart';
 import 'package:glitty/config/env.dart';
 import 'package:glitty/services/auth_service.dart';
+import 'package:glitty/services/google_auth_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -242,6 +244,58 @@ class _LoginPageState extends State<LoginPage> {
         builder: (context) => const ResetPasswordPage(),
       ),
     );
+  }
+
+  // Dans LoginPage.dart - Ajoutez cette méthode dans la classe _LoginPageState
+  Future<void> _loginWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      print('🔄 Début de la connexion Google...');
+
+      final result = await GoogleAuthService.signInWithGoogle();
+
+      if (result != null && mounted) {
+        // Sauvegarder la connexion
+        await AuthService.saveClientLogin(result['client'], result['token']);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Connexion Google réussie'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Rediriger vers l'accueil
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ClientAccueil(
+              clientData: result['client'],
+              token: result['token'],
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        print('❌ Erreur connexion Google: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur Google: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -567,6 +621,45 @@ class _LoginPageState extends State<LoginPage> {
                 ),
 
                 const SizedBox(height: 32),
+                // Bouton Google
+                // Remplacez le bouton Google dans LoginPage.dart
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _isLoading ? null : _loginWithGoogle,
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.grey[700],
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      side: BorderSide(color: Colors.grey[300]!),
+                      elevation: 1,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SvgPicture.asset(
+                          'assets/google-icon.svg',
+                          width: 24,
+                          height: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Continuer avec Google',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'DM Sans',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
 
                 // Basculer entre connexion/inscription
                 Container(

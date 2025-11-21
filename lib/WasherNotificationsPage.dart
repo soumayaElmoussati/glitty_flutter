@@ -99,94 +99,161 @@ class _WasherNotificationsPageState extends State<WasherNotificationsPage> {
 
   Widget _buildNotificationHeader() {
     const dark = Color(0xFF022519);
+    final unreadCount =
+        _notifications.where((n) => !_isNotificationRead(n)).length;
+    final totalCount = _notifications.length;
 
     return Container(
-      height: 180,
+      height: 180, // Hauteur fixe pour éviter les débordements
       width: double.infinity,
       color: dark,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Column(
+        mainAxisSize:
+            MainAxisSize.min, // IMPORTANT: Évite l'expansion excessive
         children: [
-          // Première ligne : menu, logo, espace pour équilibrer
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_back_rounded,
-                    color: Colors.white,
-                    size: 24,
+          // Première ligne : bouton retour et logo
+          SizedBox(
+            height: 40, // Hauteur fixe pour la première ligne
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                   ),
                 ),
-              ),
-              Image.asset(
-                'assets/logo-glitty.png',
-                width: 149,
-                height: 69,
-              ),
-              // Espaceur pour équilibrer la disposition
-              const SizedBox(width: 40),
-            ],
+                Image.asset(
+                  'assets/logo-glitty.png',
+                  width: 149,
+                  height: 69,
+                  fit: BoxFit.contain,
+                ),
+                // Espaceur pour équilibrer la disposition
+                const SizedBox(width: 40),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
-          // Titre et statistiques
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Mes Notifications",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontFamily: "DM Sans",
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "${_notifications.length} notification${_notifications.length > 1 ? 's' : ''} • ${_notifications.where((n) => !_isNotificationRead(n)).length} non lue${_notifications.where((n) => !_isNotificationRead(n)).length > 1 ? 's' : ''}",
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Badge notifications non lues
-              if (_hasUnreadNotifications)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    "${_notifications.where((n) => !_isNotificationRead(n)).length}",
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
+
+          // Titre et statistiques - SOLUTION ROBUSTE AVEC ESPACE CONTRÔLÉ
+          Expanded(
+            // Utilise l'espace restant de manière contrôlée
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Mes Notifications",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontFamily: "DM Sans",
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
                   ),
                 ),
-            ],
+                const SizedBox(height: 12),
+
+                // Container pour les statistiques avec hauteur fixe
+                SizedBox(
+                  height: 40, // Hauteur fixe pour éviter le débordement
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Première partie des statistiques
+                      _buildStatItem(
+                        '$totalCount',
+                        'notification${totalCount > 1 ? 's' : ''}',
+                      ),
+
+                      // Séparateur
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Container(
+                          width: 4,
+                          height: 4,
+                          decoration: const BoxDecoration(
+                            color: Colors.white70,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+
+                      // Deuxième partie des statistiques
+                      _buildStatItem(
+                        '$unreadCount',
+                        'non lue${unreadCount > 1 ? 's' : ''}',
+                      ),
+
+                      // Badge notifications non lues
+                      if (_hasUnreadNotifications) ...[
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            '$unreadCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  // Widget réutilisable pour les items de statistique
+  Widget _buildStatItem(String count, String label) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          count,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            height: 1.0,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            height: 1.0,
+          ),
+        ),
+      ],
     );
   }
 
@@ -520,7 +587,6 @@ class _WasherNotificationsPageState extends State<WasherNotificationsPage> {
     );
   }
 
-  // NOUVELLE MÉTHODE : Voir les détails de la commande
   void _viewCommandeDetails(dynamic notification) async {
     final notificationId = notification['id'];
     final commandeId = notification['commande_id'];

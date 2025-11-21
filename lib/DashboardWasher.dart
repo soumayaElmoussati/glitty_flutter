@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
+import 'package:glitty/CommandesListPage.dart';
 import 'package:glitty/LoginWasherPage.dart';
 import 'package:glitty/WasherNotificationsPage.dart';
 import 'package:glitty/WasherSetGPS.dart';
@@ -13,6 +15,8 @@ import 'package:glitty/config/env.dart';
 import 'package:glitty/MesTicketsWasher.dart';
 // AJOUT: Import du service de notifications
 import 'package:glitty/services/notification_service.dart';
+// AJOUT: Import du service Firebase
+import 'package:glitty/services/firebase_notification_service.dart';
 
 class DashboardWasherPage extends StatefulWidget {
   final String nom;
@@ -35,12 +39,112 @@ class _DashboardWasherPageState extends State<DashboardWasherPage> {
   bool _isOnline = false;
   bool _isUpdatingStatus = false;
 
+  // NOUVEAU: Index pour la bottom navigation bar
+  int _currentIndex = 0;
+
   @override
   void initState() {
     super.initState();
     _fetchWasherStats();
     _checkUnreadNotifications();
     _fetchWasherStatus();
+    _initializeFirebaseNotifications(); // AJOUT: Initialiser les notifications Firebase
+  }
+
+  @override
+  void dispose() {
+    FirebaseNotificationService.dispose(); // IMPORTANT: fermer le stream
+    super.dispose();
+  }
+
+  // AJOUT: Initialiser les notifications Firebase
+  Future<void> _initializeFirebaseNotifications() async {
+    try {
+      print('🚀 Initialisation des notifications Firebase...');
+
+      // Initialiser Firebase Messaging
+      await FirebaseNotificationService.initialize();
+
+      // Récupérer et envoyer le token FCM
+      String? fcmToken = await FirebaseNotificationService.getFCMToken();
+      if (fcmToken != null) {
+        await _sendFCMTokenToServer(fcmToken);
+      }
+
+      // Écouter les nouvelles notifications
+      FirebaseNotificationService.notifications.listen((notification) {
+        _handlePushNotification(notification);
+      });
+
+      print('✅ Notifications Firebase initialisées avec succès');
+    } catch (e) {
+      print('❌ Erreur initialisation notifications Firebase: $e');
+    }
+  }
+
+  // AJOUT: Envoyer le token FCM au serveur
+// AJOUT: Envoyer le token FCM au serveur
+  Future<void> _sendFCMTokenToServer(String token) async {
+    try {
+      print('📤 Envoi du token FCM au serveur pour washer ${widget.washerId}');
+      print('🔥 Token à envoyer: $token');
+
+      // ✅ CHANGEZ POST EN PUT
+      final response = await http.put(
+        // ← ICI: POST → PUT
+        Uri.parse('${Env.baseUrl}/api/washer/${widget.washerId}/fcm-token'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'fcm_token': token,
+        }),
+      );
+
+      // ✅ AJOUTEZ CES LOGS POUR DEBUGGER
+      print('📡 Statut HTTP: ${response.statusCode}');
+      print('📄 Réponse: ${response.body}');
+
+      if (response.statusCode == 200) {
+        print('✅ Token FCM envoyé au serveur avec succès!');
+      } else {
+        print('❌ Erreur envoi token FCM: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Erreur envoi token FCM: $e');
+    }
+  }
+
+  // AJOUT: Gérer les notifications push
+  void _handlePushNotification(Map<String, dynamic> notification) {
+    print('🎯 Notification push reçue: ${notification['title']}');
+
+    // Recharger les notifications
+    _checkUnreadNotifications();
+
+    // Afficher un snackbar
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text(notification['title'] ?? 'Nouvelle commande disponible'),
+          backgroundColor: Colors.green,
+          action: SnackBarAction(
+            label: 'Voir',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => WasherNotificationsPage(
+                    washerId: widget.washerId,
+                    washerData: widget.washerData,
+                  ),
+                ),
+              );
+            },
+          ),
+          duration: Duration(seconds: 5),
+        ),
+      );
+    }
   }
 
   Future<void> _fetchWasherStatus() async {
@@ -63,7 +167,7 @@ class _DashboardWasherPageState extends State<DashboardWasherPage> {
     }
   }
 
-// NOUVEAU: Basculer le statut en ligne/hors ligne
+  // NOUVEAU: Basculer le statut en ligne/hors ligne
   Future<void> _toggleOnlineStatus() async {
     if (_isUpdatingStatus) return;
 
@@ -147,7 +251,7 @@ class _DashboardWasherPageState extends State<DashboardWasherPage> {
     }
   }
 
-// AJOUT: Méthode pour vérifier les notifications non lues
+  // AJOUT: Méthode pour vérifier les notifications non lues
   Future<void> _checkUnreadNotifications() async {
     try {
       final result =
@@ -177,6 +281,35 @@ class _DashboardWasherPageState extends State<DashboardWasherPage> {
     );
   }
 
+  // NOUVEAU: Méthode pour obtenir la page actuelle
+  Widget _getCurrentPage() {
+    switch (_currentIndex) {
+      case 0:
+        return _buildDashboardContent();
+      case 1:
+        return _buildPlaceholderPage("Planning");
+      case 2:
+        return _buildPlaceholderPage("Missions");
+      case 3:
+        return _buildPlaceholderPage("Profil");
+      default:
+        return _buildDashboardContent();
+    }
+  }
+
+  // NOUVEAU: Page placeholder pour les autres onglets
+  Widget _buildPlaceholderPage(String title) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Text(
+          "$title - Page en développement",
+          style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFF1A2C42);
@@ -186,135 +319,285 @@ class _DashboardWasherPageState extends State<DashboardWasherPage> {
     return Scaffold(
       backgroundColor: dark,
       drawer: _buildModernDrawer(context, dark, accentColor),
-      body: SafeArea(
-        child: Column(
+      body: _getCurrentPage(),
+      // NOUVEAU: Bottom Navigation Bar
+// MODIFIEZ LA PARTIE bottomNavigationBar DANS LA MÉTHODE build
+      bottomNavigationBar: Container(
+        height: 80,
+        color: Colors.black,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            // Partie supérieure identique
-            Container(
-              height: 180,
-              width: double.infinity,
-              color: dark,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Builder(
-                        builder: (context) => GestureDetector(
-                          onTap: () => Scaffold.of(context).openDrawer(),
-                          child: Image.asset(
-                            'assets/menu-icone.png',
-                            width: 24,
-                            height: 24,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      Image.asset(
-                        'assets/logo-glitty.png',
-                        width: 149,
-                        height: 69,
-                      ),
-                      // CORRECTION: Icône de notification avec badge
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => WasherNotificationsPage(
-                                washerId: widget.washerId,
-                                washerData: widget.washerData,
-                              ),
-                            ),
-                          ).then((_) {
-                            // Recharger les notifications quand on revient de la page notifications
-                            _checkUnreadNotifications();
-                          });
-                        },
-                        child: Stack(
-                          children: [
-                            Image.asset(
-                              'assets/notification-icone.png',
-                              width: 24,
-                              height: 24,
-                              color: Colors.white,
-                            ),
-                            // Badge pour notifications non lues
-                            if (_hasUnreadNotifications)
-                              Positioned(
-                                right: 0,
-                                top: 0,
-                                child: Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
+            // Icône Dashboard
+            GestureDetector(
+              onTap: () => setState(() => _currentIndex = 0),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _currentIndex == 0
+                      ? Color(0xFF4CAF50)
+                      : Colors.transparent,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: SvgPicture.asset(
+                    'assets/icone-home.svg',
+                    width: 24,
+                    height: 24,
+                    color: _currentIndex == 0 ? Colors.white : Colors.grey[400],
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          height: 40,
-                          child: const Center(
-                            child: Text(
-                              "Tableau de Bord prestataire de service",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontFamily: "DM Sans",
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: -0.3,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ),
             ),
 
-            // Contenu principal du dashboard
-            Expanded(
+            // Icône Planning
+            GestureDetector(
+              onTap: () => setState(() => _currentIndex = 1),
               child: Container(
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(40),
-                    topRight: Radius.circular(40),
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _currentIndex == 1
+                      ? Color(0xFF4CAF50)
+                      : Colors.transparent,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: SvgPicture.asset(
+                    'assets/icone2.svg',
+                    width: 24,
+                    height: 24,
+                    color: _currentIndex == 1 ? Colors.white : Colors.grey[400],
                   ),
                 ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildWelcomeSection(widget.nom, dark),
-                      const SizedBox(height: 30),
-                      _buildStatsGrid(context, dark, accentColor),
-                      const SizedBox(height: 30),
-                      _buildQuickActionsSection(context, dark),
-                      const SizedBox(height: 30),
-                      _buildRecentActivitySection(dark),
-                    ],
+              ),
+            ),
+
+            // Icône Missions
+            GestureDetector(
+              onTap: () => setState(() => _currentIndex = 2),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _currentIndex == 2
+                      ? Color(0xFF4CAF50)
+                      : Colors.transparent,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: SvgPicture.asset(
+                    'assets/icone3.svg',
+                    width: 24,
+                    height: 24,
+                    color: _currentIndex == 2 ? Colors.white : Colors.grey[400],
+                  ),
+                ),
+              ),
+            ),
+
+            // Icône Profil
+            GestureDetector(
+              onTap: () => setState(() => _currentIndex = 3),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _currentIndex == 3
+                      ? Color(0xFF4CAF50)
+                      : Colors.transparent,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: SvgPicture.asset(
+                    'assets/icone4.svg',
+                    width: 24,
+                    height: 24,
+                    color: _currentIndex == 3 ? Colors.white : Colors.grey[400],
                   ),
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // NOUVEAU: Méthode pour construire les items de la bottom nav
+  Widget _buildBottomNavItem({
+    required String iconPath,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    final double iconSize = 24;
+    final double containerSize = 40;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: containerSize,
+        height: containerSize,
+        decoration: BoxDecoration(
+          color: isActive ? Color(0xFF4CAF50) : Colors.transparent,
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: iconPath.endsWith('.svg')
+              ? // Pour les SVG
+              // Note: Vous devrez peut-être adapter selon votre implémentation SVG
+              Image.asset(
+                  iconPath,
+                  width: iconSize,
+                  height: iconSize,
+                  color: isActive ? Colors.white : Colors.grey[400],
+                )
+              : // Pour les PNG
+              Image.asset(
+                  iconPath,
+                  width: iconSize,
+                  height: iconSize,
+                  color: isActive ? Colors.white : Colors.grey[400],
+                ),
+        ),
+      ),
+    );
+  }
+
+  // MODIFIÉ: Renommer l'ancienne méthode build en _buildDashboardContent
+  Widget _buildDashboardContent() {
+    const dark = Color(0xFF022519);
+    const accentColor = Color(0xFF4CAF50);
+
+    return SafeArea(
+      child: Column(
+        children: [
+          // Partie supérieure identique
+          Container(
+            height: 180,
+            width: double.infinity,
+            color: dark,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Builder(
+                      builder: (context) => GestureDetector(
+                        onTap: () => Scaffold.of(context).openDrawer(),
+                        child: Image.asset(
+                          'assets/menu-icone.png',
+                          width: 24,
+                          height: 24,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    Image.asset(
+                      'assets/logo-glitty.png',
+                      width: 149,
+                      height: 69,
+                    ),
+                    // CORRECTION: Icône de notification avec badge
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => WasherNotificationsPage(
+                              washerId: widget.washerId,
+                              washerData: widget.washerData,
+                            ),
+                          ),
+                        ).then((_) {
+                          // Recharger les notifications quand on revient de la page notifications
+                          _checkUnreadNotifications();
+                        });
+                      },
+                      child: Stack(
+                        children: [
+                          Image.asset(
+                            'assets/notification-icone.png',
+                            width: 24,
+                            height: 24,
+                            color: Colors.white,
+                          ),
+                          // Badge pour notifications non lues
+                          if (_hasUnreadNotifications)
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 40,
+                        child: const Center(
+                          child: Text(
+                            "Tableau de Bord prestataire de service",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontFamily: "DM Sans",
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Contenu principal du dashboard
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(40),
+                  topRight: Radius.circular(40),
+                ),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildWelcomeSection(widget.nom, dark),
+                    const SizedBox(height: 30),
+                    _buildStatsGrid(context, dark, accentColor),
+                    const SizedBox(height: 30),
+                    _buildQuickActionsSection(context, dark),
+                    const SizedBox(height: 30),
+                    _buildRecentActivitySection(dark),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -814,10 +1097,21 @@ class _DashboardWasherPageState extends State<DashboardWasherPage> {
               child: _buildActionCard(
                 context,
                 "Nouvelle mission",
-                "Commencer maintenant",
+                "Voir les commandes",
                 Icons.play_circle_fill_rounded,
                 const Color(0xFF1A2C42),
-                () => Navigator.pushNamed(context, '/checklist-preparation'),
+                () {
+                  // Naviguer vers CommandesListPage au lieu de ChecklistPreparationPage
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CommandesListPage(
+                        nom: widget.nom,
+                        washerId: widget.washerId,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
             const SizedBox(width: 15),

@@ -24,6 +24,7 @@ class _WasherCommandeDetailPageState extends State<WasherCommandeDetailPage> {
   Map<String, dynamic>? _commandeData;
   bool _isLoading = true;
   String _errorMessage = '';
+  bool _isProcessing = false;
 
   @override
   void initState() {
@@ -66,6 +67,105 @@ class _WasherCommandeDetailPageState extends State<WasherCommandeDetailPage> {
 
   Future<void> _markNotificationAsRead() async {
     await NotificationService.markAsRead(widget.notificationId);
+  }
+
+  Future<void> _acceptCommande() async {
+    if (_isProcessing) return;
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    // Afficher un indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
+              ),
+              SizedBox(width: 20),
+              Text("Acceptation de la commande..."),
+            ],
+          ),
+        );
+      },
+    );
+
+    final result = await NotificationService.acceptCommande(
+      notificationId: widget.notificationId,
+      commandeId: widget.commandeId,
+      washerId: widget.washerId,
+    );
+
+    // Fermer le dialogue de chargement
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Commande acceptée avec succès!'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
+      // Recharger les données de la commande
+      await _loadCommandeDetail();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['error'] ?? 'Erreur lors de l\'acceptation'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+
+    setState(() {
+      _isProcessing = false;
+    });
+  }
+
+  Future<void> _rejectCommande() async {
+    if (_isProcessing) return;
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    final result =
+        await NotificationService.rejectCommande(widget.notificationId);
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Commande refusée'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+
+      // Retourner à la page précédente
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['error'] ?? 'Erreur lors du refus'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+
+    setState(() {
+      _isProcessing = false;
+    });
   }
 
   Widget _buildHeader() {
@@ -240,6 +340,106 @@ class _WasherCommandeDetailPageState extends State<WasherCommandeDetailPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildActionButtons() {
+    if (_commandeData == null) return Container();
+
+    final commande = _commandeData!;
+    final statut = commande['statut'];
+
+    // Si la commande est déjà confirmée, ne pas afficher les boutons
+    if (statut != 'en_attente') {
+      return Container();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          // Bouton Accepter avec icône
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: _isProcessing ? null : _acceptCommande,
+              icon: _isProcessing
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(
+                      Icons.check_circle_outline_rounded,
+                      size: 24,
+                    ),
+              label: _isProcessing
+                  ? const Text('Traitement...')
+                  : const Text(
+                      'Accepter',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4CAF50),
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+                shadowColor: const Color(0xFF4CAF50).withOpacity(0.3),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Bouton Refuser avec icône
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: _isProcessing ? null : _rejectCommande,
+              icon: _isProcessing
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                      ),
+                    )
+                  : const Icon(
+                      Icons.cancel_outlined,
+                      size: 24,
+                    ),
+              label: _isProcessing
+                  ? const Text('Traitement...')
+                  : const Text(
+                      'Refuser',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red, width: 2),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                backgroundColor: Colors.red.withOpacity(0.05),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -448,6 +648,9 @@ class _WasherCommandeDetailPageState extends State<WasherCommandeDetailPage> {
                               children: [
                                 // Carte des gains
                                 _buildGainsCard(),
+
+                                // Boutons d'action (Accepter/Refuser)
+                                _buildActionButtons(),
 
                                 // Carte des informations
                                 _buildInfoCard(),
