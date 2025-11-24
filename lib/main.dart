@@ -130,10 +130,10 @@ class MyApp extends StatelessWidget {
             DashboardWasherPage(nom: 'Washer', washerId: 1),
         // '/checklist-preparation': (context) =>
         //    ChecklistPreparationPage(nom: 'Washer', washerId: 1),
-        '/mission-gps': (context) => MissionSuiviPage(),
-        '/mission-suivi': (context) => MissionSuiviPage(),
+        //  '/mission-gps': (context) => MissionSuiviPage(),
+        //  '/mission-suivi': (context) => MissionSuiviPage(),
 
-        '/washer-earnings': (context) => WasherEarningsPage(),
+        //   '/washer-earnings': (context) => WasherEarningsPage(),
         '/admin-validation': (context) => const AdminDashboardPage(),
         '/admin-old': (context) => AdminValidationPage(),
         '/notifications': (context) =>

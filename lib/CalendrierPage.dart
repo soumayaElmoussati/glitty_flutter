@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:glitty/CommandesAujourdhuiPage.dart';
 import 'package:glitty/DashboardWasher.dart';
 import 'package:glitty/MesTicketsWasher.dart';
-import 'package:glitty/NotificationsPage.dart';
+import 'package:glitty/NotificationsPage.dart' hide NotificationsPage;
+import 'package:glitty/WasherCommandsPage.dart';
 import 'package:glitty/WasherEarningsPage.dart';
 import 'package:glitty/WasherSetGPS.dart';
 import 'package:glitty/WelcomePage.dart';
@@ -9,15 +11,17 @@ import 'package:glitty/config/env.dart';
 import 'package:glitty/services/auth_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 
 class CalendrierPage extends StatefulWidget {
   final int washerId;
   final Map<String, dynamic>? washerData;
   final String nom;
-  const CalendrierPage(
-      {Key? key, required this.washerId, required this.nom, this.washerData})
-      : super(key: key);
+  const CalendrierPage({
+    Key? key,
+    required this.washerId,
+    required this.nom,
+    this.washerData,
+  }) : super(key: key);
 
   @override
   _CalendrierPageState createState() => _CalendrierPageState();
@@ -28,6 +32,8 @@ class _CalendrierPageState extends State<CalendrierPage> {
   DateTime _currentMonth = DateTime.now();
   List<dynamic> _missions = [];
   bool _isLoading = false;
+  int _currentIndex =
+      1; // Index pour la BottomNavigationBar (1 pour "Planning")
 
   @override
   void initState() {
@@ -63,7 +69,11 @@ class _CalendrierPageState extends State<CalendrierPage> {
   void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -87,74 +97,266 @@ class _CalendrierPageState extends State<CalendrierPage> {
     return _getMissionsForDate(date).isNotEmpty;
   }
 
+  int _getMissionCountForDate(DateTime date) {
+    return _getMissionsForDate(date).length;
+  }
+
+  // Bottom Navigation Bar - Même style que les autres pages
+  Widget _buildBottomNavigationBar() {
+    const primaryColor = Color(0xFF022519);
+    const accentColor = Color(0xFF34C759);
+
+    return Container(
+      height: 70,
+      decoration: BoxDecoration(
+        color: primaryColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+        child: Container(
+          color: primaryColor,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildBottomNavItem(0, Icons.dashboard_rounded),
+              _buildBottomNavItem(1, Icons.today_rounded),
+              _buildBottomNavItem(2, Icons.cleaning_services_rounded),
+              _buildBottomNavItem(3, Icons.person_rounded),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNavItem(int index, IconData icon) {
+    final isActive = _currentIndex == index;
+    const accentColor = Color(0xFF34C759);
+
+    return GestureDetector(
+      onTap: () => _onBottomNavItemTapped(index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isActive ? accentColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: accentColor.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : [],
+        ),
+        child: Icon(
+          icon,
+          size: 24,
+          color: isActive ? Colors.white : Colors.white.withOpacity(0.7),
+        ),
+      ),
+    );
+  }
+
+  void _onBottomNavItemTapped(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+
+    switch (index) {
+      case 0: // Dashboard
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DashboardWasherPage(
+              nom: widget.nom,
+              washerId: widget.washerId,
+            ),
+          ),
+        );
+        break;
+      case 1: // Planning (déjà sur cette page)
+        // Ne rien faire, on est déjà sur cette page
+        break;
+      case 2: // Missions
+        // Vous pouvez ajouter la navigation vers la page des missions ici
+        // Navigator.pushReplacement(...);
+        break;
+      case 3: // Profil
+        // Vous pouvez ajouter la navigation vers la page de profil ici
+        // Navigator.pushReplacement(...);
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    const dark = Color(0xFF022519);
+    const primaryColor = Color(0xFF022519);
+    const accentColor = Color(0xFF4CAF50);
+    const backgroundColor = Color(0xFFF8F9FA);
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      drawer: _buildModernDrawer(context, dark, const Color(0xFF4CAF50)),
+      backgroundColor: backgroundColor,
+      drawer: _buildModernDrawer(context, primaryColor, accentColor),
       body: SafeArea(
         child: Column(
           children: [
-            // Partie supérieure identique à DashboardWasherPage
+            // Header amélioré
             Container(
               height: 180,
               width: double.infinity,
-              color: dark,
+              decoration: BoxDecoration(
+                color: primaryColor,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(30),
+                  bottomRight: Radius.circular(30),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Column(
                 children: [
-                  // Première ligne : icônes menu, logo, notification
+                  // Header row
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Menu icon qui ouvre le drawer
                       Builder(
                         builder: (context) => GestureDetector(
                           onTap: () => Scaffold.of(context).openDrawer(),
-                          child: Image.asset(
-                            'assets/menu-icone.png',
-                            width: 24,
-                            height: 24,
-                            color: Colors.white,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Image.asset(
+                              'assets/menu-icone.png',
+                              width: 20,
+                              height: 20,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
                       Image.asset(
                         'assets/logo-glitty.png',
-                        width: 149,
-                        height: 69,
+                        width: 130,
+                        height: 60,
                       ),
-                      Image.asset(
-                        'assets/notification-icone.png',
-                        width: 24,
-                        height: 24,
-                        color: Colors.white,
+                      GestureDetector(
+                        onTap: () => _navigateToNotifications(context),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Stack(
+                            children: [
+                              Image.asset(
+                                'assets/notification-icone.png',
+                                width: 20,
+                                height: 20,
+                                color: Colors.white,
+                              ),
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                child: Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 16), // Espace entre les deux lignes
+                  const SizedBox(height: 20),
 
-                  // Deuxième ligne : barre de recherche + icône salut
+                  // Titre et statistiques
                   Row(
                     children: [
                       Expanded(
-                        child: Container(
-                          height: 40,
-                          child: const Center(
-                            child: Text(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Mon Calendrier",
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontFamily: "DM Sans",
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
                               "Planning des missions",
                               style: TextStyle(
                                 color: Colors.white,
                                 fontFamily: "DM Sans",
-                                fontSize: 16,
+                                fontSize: 20,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: -0.3,
                               ),
                             ),
-                          ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: accentColor.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: accentColor),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.event_available,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${_missions.length} mission(s)',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -163,7 +365,7 @@ class _CalendrierPageState extends State<CalendrierPage> {
               ),
             ),
 
-            // Contenu principal du calendrier
+            // Contenu principal
             Expanded(
               child: Container(
                 width: double.infinity,
@@ -176,10 +378,19 @@ class _CalendrierPageState extends State<CalendrierPage> {
                 ),
                 child: Column(
                   children: [
-                    // En-tête du calendrier
+                    // En-tête du calendrier amélioré
                     Container(
-                      color: Colors.white,
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -192,22 +403,36 @@ class _CalendrierPageState extends State<CalendrierPage> {
                                 );
                               });
                             },
-                            icon: const Icon(Icons.chevron_left, size: 30),
+                            icon: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.chevron_left,
+                                color: primaryColor,
+                                size: 24,
+                              ),
+                            ),
                           ),
                           Column(
                             children: [
                               Text(
                                 _getMonthYearText(_currentMonth),
                                 style: const TextStyle(
-                                  fontSize: 20,
+                                  fontSize: 18,
                                   fontWeight: FontWeight.bold,
+                                  color: Color(0xFF022519),
                                 ),
                               ),
+                              const SizedBox(height: 4),
                               Text(
-                                '${_missions.length} mission(s) future(s)',
+                                '${_getMissionsForMonth(_currentMonth).length} mission(s) ce mois',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
@@ -221,45 +446,70 @@ class _CalendrierPageState extends State<CalendrierPage> {
                                 );
                               });
                             },
-                            icon: const Icon(Icons.chevron_right, size: 30),
+                            icon: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.chevron_right,
+                                color: primaryColor,
+                                size: 24,
+                              ),
+                            ),
                           ),
                         ],
                       ),
                     ),
 
-                    // Jours de la semaine
+                    // Jours de la semaine améliorés
                     Container(
-                      color: Colors.white,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
+                          horizontal: 16, vertical: 12),
                       child: Row(
-                        children: ['L', 'M', 'M', 'J', 'V', 'S', 'D']
-                            .map((day) => Expanded(
-                                  child: Center(
-                                    child: Text(
-                                      day,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.grey[600],
+                        children:
+                            ['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM']
+                                .map((day) => Expanded(
+                                      child: Center(
+                                        child: Text(
+                                          day,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.grey[600],
+                                            fontSize: 12,
+                                            letterSpacing: -0.3,
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                ))
-                            .toList(),
+                                    ))
+                                .toList(),
                       ),
                     ),
 
-                    // Grille du calendrier
+                    // Grille du calendrier améliorée avec bordures vertes
                     Expanded(
+                      flex: 2,
                       child: Container(
-                        color: Colors.white,
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: _buildCalendarGrid(),
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _buildEnhancedCalendarGrid(),
                       ),
                     ),
 
-                    // Liste des missions du jour sélectionné
+                    // Séparateur
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 16),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+
+                    // Liste des missions du jour
                     Expanded(
+                      flex: 3,
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         child: Column(
@@ -267,10 +517,16 @@ class _CalendrierPageState extends State<CalendrierPage> {
                           children: [
                             Row(
                               children: [
+                                Icon(
+                                  Icons.event_note_rounded,
+                                  color: primaryColor,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
                                 Text(
                                   'Missions du ${_formatSelectedDate(_selectedDate)}',
                                   style: const TextStyle(
-                                    fontSize: 18,
+                                    fontSize: 16,
                                     fontWeight: FontWeight.bold,
                                     color: Color(0xFF022519),
                                   ),
@@ -280,14 +536,15 @@ class _CalendrierPageState extends State<CalendrierPage> {
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: Colors.green[50],
+                                    color: accentColor.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
                                     '${_getMissionsForDate(_selectedDate).length}',
-                                    style: const TextStyle(
-                                      color: Colors.green,
+                                    style: TextStyle(
+                                      color: accentColor,
                                       fontWeight: FontWeight.bold,
+                                      fontSize: 12,
                                     ),
                                   ),
                                 ),
@@ -295,7 +552,7 @@ class _CalendrierPageState extends State<CalendrierPage> {
                             ),
                             const SizedBox(height: 16),
                             Expanded(
-                              child: _buildMissionsList(),
+                              child: _buildModernMissionsList(),
                             ),
                           ],
                         ),
@@ -308,19 +565,460 @@ class _CalendrierPageState extends State<CalendrierPage> {
           ],
         ),
       ),
+      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
-  // Méthode pour construire le drawer avec navigation ajustée
+  Widget _buildEnhancedCalendarGrid() {
+    final firstDayOfMonth =
+        DateTime(_currentMonth.year, _currentMonth.month, 1);
+    final lastDayOfMonth =
+        DateTime(_currentMonth.year, _currentMonth.month + 1, 0);
+    final firstWeekdayOfMonth = firstDayOfMonth.weekday;
+    final daysInMonth = lastDayOfMonth.day;
+
+    return GridView.builder(
+      // CORRECTION : Suppression de NeverScrollableScrollPhysics pour permettre le scroll
+      shrinkWrap: true,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 7,
+        childAspectRatio: 1.3,
+      ),
+      itemCount: 42,
+      itemBuilder: (context, index) {
+        final dayNumber = index - firstWeekdayOfMonth + 2;
+
+        if (dayNumber <= 0 || dayNumber > daysInMonth) {
+          return const SizedBox.shrink();
+        }
+
+        final date =
+            DateTime(_currentMonth.year, _currentMonth.month, dayNumber);
+        final isSelected = _isSameDay(date, _selectedDate);
+        final isToday = _isSameDay(date, DateTime.now());
+        final hasMissions = _hasMissionsOnDate(date);
+        final isPast =
+            date.isBefore(DateTime.now().subtract(const Duration(days: 1)));
+
+        return GestureDetector(
+          onTap: isPast ? null : () => setState(() => _selectedDate = date),
+          child: Container(
+            margin: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? const Color(0xFF022519)
+                  : isToday
+                      ? const Color(0xFF4CAF50).withOpacity(0.1)
+                      : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              // BORDURE VERTE POUR LES DATES AVEC MISSIONS - comme ancien code
+              border: hasMissions && !isPast && !isSelected
+                  ? Border.all(color: const Color(0xFF4CAF50), width: 2)
+                  : isToday && !isSelected
+                      ? Border.all(color: const Color(0xFF4CAF50), width: 2)
+                      : null,
+            ),
+            child: Stack(
+              children: [
+                // Contenu principal de la cellule
+                Center(
+                  child: Text(
+                    dayNumber.toString(),
+                    style: TextStyle(
+                      color: isSelected
+                          ? Colors.white
+                          : isToday
+                              ? const Color(0xFF4CAF50)
+                              : isPast
+                                  ? Colors.grey[400]
+                                  : Colors.grey[800],
+                      fontWeight: isSelected || isToday
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+
+                // Indicateur de jour passé
+                if (isPast)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Icon(
+                      Icons.lock_clock,
+                      size: 12,
+                      color: Colors.grey[400],
+                    ),
+                  ),
+
+                // Petit point vert pour les missions (optionnel)
+                if (hasMissions && !isSelected && !isPast)
+                  Positioned(
+                    bottom: 4,
+                    right: 4,
+                    child: Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF4CAF50),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildModernMissionsList() {
+    final missionsForDay = _getMissionsForDate(_selectedDate);
+
+    if (_isLoading) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Chargement des missions...',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (missionsForDay.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _selectedDate.isBefore(DateTime.now())
+                  ? Icons.history_rounded
+                  : Icons.event_available_rounded,
+              size: 64,
+              color: Colors.grey[300],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _selectedDate.isBefore(DateTime.now())
+                  ? 'Journée passée'
+                  : 'Aucune mission prévue',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _selectedDate.isBefore(DateTime.now())
+                  ? 'Cette date est dans le passé'
+                  : 'Profitez de cette journée libre !',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: missionsForDay.length,
+      itemBuilder: (context, index) {
+        return _buildEnhancedMissionCard(missionsForDay[index]);
+      },
+    );
+  }
+
+  Widget _buildEnhancedMissionCard(Map<String, dynamic> mission) {
+    final status = mission['statut'] ?? 'en_attente';
+    final time = mission['heure_mission'] ?? '00:00';
+    final creneau = mission['creneau'] ?? '';
+    final vehicle = mission['vehicle_info'] ?? {};
+    final missionDate = DateTime.parse(mission['date_mission']);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(
+          color: Colors.grey.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header avec statut et prix
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildEnhancedStatusChip(status),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${mission['prix'] ?? 0}€',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF4CAF50),
+                      ),
+                    ),
+                    Text(
+                      _formatTime(time),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Type de lavage
+            Text(
+              _getLavageTitle(mission['type_lavage'] ?? ''),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF022519),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Informations détaillées
+            _buildEnhancedInfoRow(
+              Icons.access_time_rounded,
+              '${_formatCreneau(creneau)} • ${_formatTime(time)}',
+            ),
+            const SizedBox(height: 8),
+
+            _buildEnhancedInfoRow(
+              Icons.location_on_rounded,
+              mission['adresse'] ?? 'Adresse non spécifiée',
+              maxLines: 2,
+            ),
+            const SizedBox(height: 8),
+
+            _buildEnhancedInfoRow(
+              Icons.person_rounded,
+              mission['client_nom'] ?? 'Client',
+            ),
+
+            if (vehicle['type'] != null) ...[
+              const SizedBox(height: 8),
+              _buildEnhancedInfoRow(
+                Icons.directions_car_rounded,
+                '${vehicle['type']} • ${vehicle['marque'] ?? ''} ${vehicle['modele'] ?? ''}',
+              ),
+            ],
+
+            // Séparateur et actions
+            const SizedBox(height: 12),
+            Container(
+              height: 1,
+              color: Colors.grey[200],
+            ),
+            const SizedBox(height: 8),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (missionDate.isAfter(DateTime.now()))
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF022519).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'À venir',
+                      style: TextStyle(
+                        color: const Color(0xFF022519),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEnhancedInfoRow(IconData icon, String text, {int maxLines = 1}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(
+            icon,
+            size: 14,
+            color: Colors.grey[600],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: Colors.grey[700],
+              fontSize: 14,
+            ),
+            maxLines: maxLines,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEnhancedStatusChip(String status) {
+    final statusConfig = _getStatusConfig(status);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: statusConfig.color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: statusConfig.color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: statusConfig.color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            statusConfig.text,
+            style: TextStyle(
+              color: statusConfig.color,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTime(String time) {
+    try {
+      final parts = time.split(':');
+      if (parts.length >= 2) {
+        final hour = int.parse(parts[0]);
+        final minute = parts[1];
+        return '${hour.toString().padLeft(2, '0')}:$minute';
+      }
+      return time;
+    } catch (e) {
+      return time;
+    }
+  }
+
+  StatusConfig _getStatusConfig(String status) {
+    switch (status) {
+      case 'en_cours':
+        return StatusConfig(
+          color: Colors.orange,
+          text: 'En cours',
+          icon: Icons.play_arrow_rounded,
+        );
+      case 'confirmee':
+        return StatusConfig(
+          color: Colors.blue,
+          text: 'Confirmée',
+          icon: Icons.check_circle_rounded,
+        );
+      case 'terminee':
+        return StatusConfig(
+          color: Colors.green,
+          text: 'Terminée',
+          icon: Icons.done_all_rounded,
+        );
+      case 'annulee':
+        return StatusConfig(
+          color: Colors.red,
+          text: 'Annulée',
+          icon: Icons.cancel_rounded,
+        );
+      case 'en_attente':
+      default:
+        return StatusConfig(
+          color: Colors.grey,
+          text: 'En attente',
+          icon: Icons.schedule_rounded,
+        );
+    }
+  }
+
+  List<Map<String, dynamic>> _getMissionsForMonth(DateTime month) {
+    return _missions
+        .where((mission) {
+          try {
+            final missionDate = DateTime.parse(mission['date_mission']);
+            return missionDate.year == month.year &&
+                missionDate.month == month.month;
+          } catch (e) {
+            return false;
+          }
+        })
+        .cast<Map<String, dynamic>>()
+        .toList();
+  }
+
   Widget _buildModernDrawer(
-      BuildContext context, Color dark, Color accentColor) {
+      BuildContext context, Color primaryColor, Color accentColor) {
     return Drawer(
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [dark, dark.withOpacity(0.8)],
+            colors: [primaryColor, primaryColor.withOpacity(0.8)],
           ),
         ),
         child: Column(
@@ -398,42 +1096,76 @@ class _CalendrierPageState extends State<CalendrierPage> {
                       Icons.dashboard_rounded,
                       "Dashboard",
                       false,
-                      dark,
+                      primaryColor,
                       () => _navigateToDashboard(context),
+                    ),
+                    _buildDrawerItem(
+                      Icons.today_rounded,
+                      "Aujourd'hui",
+                      false,
+                      primaryColor,
+                      () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CommandesAujourdhuiPage(
+                              washerId: widget.washerId,
+                              nom: widget.nom,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDrawerItem(
+                      Icons.list_alt_rounded,
+                      "Mes commandes",
+                      false,
+                      primaryColor,
+                      () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => WasherCommandsPage(
+                              nom: widget.nom,
+                              washerId: widget.washerId,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     _buildDrawerItem(
                       Icons.calendar_month_rounded,
                       "Planning",
                       true,
-                      dark,
+                      primaryColor,
                       () => Navigator.pop(context),
                     ),
                     _buildDrawerItem(
                       Icons.account_balance_wallet_rounded,
                       "Mes gains",
                       false,
-                      dark,
+                      primaryColor,
                       () => _navigateToEarnings(context),
-                    ),
-                    _buildDrawerItem(
-                      Icons.lock_rounded,
-                      "Sécurité",
-                      false,
-                      dark,
-                      () => _navigateToSecurity(context),
                     ),
                     _buildDrawerItem(
                       Icons.location_on_rounded,
                       "Localisation",
                       false,
-                      dark,
-                      () => _navigateToLocation(context),
+                      primaryColor,
+                      () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => WasherSetGPSPage(
+                                    washerId: widget.washerId,
+                                  ))),
                     ),
                     _buildDrawerItem(
                       Icons.help_rounded,
                       "Aide & Support",
                       false,
-                      dark,
+                      primaryColor,
                       () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -457,7 +1189,6 @@ class _CalendrierPageState extends State<CalendrierPage> {
                         false,
                         Colors.red,
                         () async {
-                          // Afficher une boîte de dialogue de confirmation
                           final shouldLogout = await showDialog(
                             context: context,
                             builder: (BuildContext context) {
@@ -485,18 +1216,13 @@ class _CalendrierPageState extends State<CalendrierPage> {
                           );
 
                           if (shouldLogout == true) {
-                            // Utiliser AuthService pour la déconnexion
                             await AuthService.logout();
-
-                            // Navigation vers la page d'accueil
                             Navigator.pushAndRemoveUntil(
                               context,
                               MaterialPageRoute(
                                   builder: (_) => const WelcomePage()),
                               (route) => false,
                             );
-
-                            // Optionnel : Afficher un message de confirmation
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text("Déconnexion réussie"),
@@ -515,62 +1241,6 @@ class _CalendrierPageState extends State<CalendrierPage> {
         ),
       ),
     );
-  }
-
-  // Méthodes de navigation
-  void _navigateToDashboard(BuildContext context) {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => DashboardWasherPage(
-          nom: widget.nom,
-          washerId: widget.washerId,
-        ),
-      ),
-    );
-  }
-
-  void _navigateToNotifications(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => NotificationsPage(washerId: widget.washerId),
-      ),
-    );
-  }
-
-  void _navigateToEarnings(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => WasherEarningsPage(),
-      ),
-    );
-  }
-
-  void _navigateToSecurity(BuildContext context) {
-    // Navigator.push(context
-    //  MaterialPageRoute(
-    //     builder: (context) => SecurityPage(washerId: widget.washerId),
-    // ),
-    //   );
-  }
-
-  void _navigateToLocation(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => WasherSetGPSPage(
-          washerId: widget.washerId,
-          washerData: null, // Vous pouvez passer des données si disponibles
-        ),
-      ),
-    );
-  }
-
-  void _logout(BuildContext context) {
-    // Ajoutez ici votre logique de déconnexion
-    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
   }
 
   Widget _buildDrawerItem(IconData icon, String title, bool isActive,
@@ -601,294 +1271,49 @@ class _CalendrierPageState extends State<CalendrierPage> {
     );
   }
 
-  // Le reste de votre code reste inchangé...
-  Widget _buildCalendarGrid() {
-    final firstDayOfMonth =
-        DateTime(_currentMonth.year, _currentMonth.month, 1);
-    final lastDayOfMonth =
-        DateTime(_currentMonth.year, _currentMonth.month + 1, 0);
-    final firstWeekdayOfMonth = firstDayOfMonth.weekday;
-    final daysInMonth = lastDayOfMonth.day;
-
-    return GridView.builder(
-      padding: const EdgeInsets.all(8),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 7,
-        childAspectRatio: 1,
-      ),
-      itemCount: 42, // 6 semaines max
-      itemBuilder: (context, index) {
-        final dayNumber = index - firstWeekdayOfMonth + 2;
-
-        if (dayNumber <= 0 || dayNumber > daysInMonth) {
-          return Container(); // Cellule vide
-        }
-
-        final date =
-            DateTime(_currentMonth.year, _currentMonth.month, dayNumber);
-        final isSelected = _isSameDay(date, _selectedDate);
-        final isToday = _isSameDay(date, DateTime.now());
-        final hasMissions = _hasMissionsOnDate(date);
-        final isPast =
-            date.isBefore(DateTime.now().subtract(const Duration(days: 1)));
-
-        return GestureDetector(
-          onTap: isPast
-              ? null
-              : () {
-                  setState(() {
-                    _selectedDate = date;
-                  });
-                },
-          child: Container(
-            margin: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? Color(0xFF022519)
-                  : isToday
-                      ? Colors.blue[100]
-                      : isPast
-                          ? Colors.grey[100]
-                          : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-              border: hasMissions && !isPast
-                  ? Border.all(color: Colors.green, width: 2)
-                  : null,
-            ),
-            child: Stack(
-              children: [
-                Center(
-                  child: Text(
-                    dayNumber.toString(),
-                    style: TextStyle(
-                      color: isSelected
-                          ? Colors.white
-                          : isToday
-                              ? Colors.blue[800]
-                              : isPast
-                                  ? Colors.grey[400]
-                                  : Colors.black,
-                      fontWeight: isSelected || isToday
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                    ),
-                  ),
-                ),
-                if (hasMissions && !isSelected && !isPast)
-                  Positioned(
-                    bottom: 4,
-                    right: 4,
-                    child: Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: Colors.green,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                if (isPast)
-                  Positioned(
-                    top: 4,
-                    left: 4,
-                    child: Icon(
-                      Icons.lock_clock,
-                      size: 12,
-                      color: Colors.grey[400],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildMissionsList() {
-    final missionsForDay = _getMissionsForDate(_selectedDate);
-
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (missionsForDay.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.event_available,
-              size: 64,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _selectedDate.isBefore(DateTime.now())
-                  ? 'Journée passée'
-                  : 'Aucune mission prévue',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _selectedDate.isBefore(DateTime.now())
-                  ? 'Cette date est dans le passé'
-                  : 'Profitez de cette journée libre !',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      itemCount: missionsForDay.length,
-      itemBuilder: (context, index) {
-        return _buildMissionCard(missionsForDay[index]);
-      },
-    );
-  }
-
-  Widget _buildMissionCard(Map<String, dynamic> mission) {
-    final status = mission['statut'] ?? 'en_attente';
-    final time = mission['heure_mission'] ?? '00:00';
-    final creneau = mission['creneau'] ?? '';
-    final vehicle = mission['vehicle_info'] ?? {};
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    _getLavageTitle(mission['type_lavage'] ?? ''),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                _buildStatusChip(status),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Text(
-                  '$time (${_formatCreneau(creneau)})',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    mission['adresse'] ?? 'Adresse non spécifiée',
-                    style: TextStyle(color: Colors.grey[600]),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.person, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    mission['client_nom'] ?? 'Client',
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                ),
-                if (vehicle['type'] != null) ...[
-                  Icon(Icons.directions_car, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${vehicle['type']}',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Text(
-                  '${mission['prix'] ?? 0}€',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
-                  ),
-                ),
-              ],
-            ),
-          ],
+  void _navigateToDashboard(BuildContext context) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DashboardWasherPage(
+          nom: widget.nom,
+          washerId: widget.washerId,
         ),
       ),
     );
   }
 
-  Widget _buildStatusChip(String status) {
-    Color color;
-    String text;
-
-    switch (status) {
-      case 'en_cours':
-        color = Colors.orange;
-        text = 'En cours';
-        break;
-      case 'confirmee':
-        color = Colors.blue;
-        text = 'Confirmée';
-        break;
-      case 'terminee':
-        color = Colors.green;
-        text = 'Terminée';
-        break;
-      case 'annulee':
-        color = Colors.red;
-        text = 'Annulée';
-        break;
-      case 'en_attente':
-      default:
-        color = Colors.grey;
-        text = 'En attente';
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+  void _navigateToNotifications(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NotificationsPage(washerId: widget.washerId),
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
+    );
+  }
+
+  void _navigateToEarnings(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => WasherEarningsPage(
+          washerId: widget.washerId,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToSecurity(BuildContext context) {
+    // Navigation vers la page de sécurité
+  }
+
+  void _navigateToLocation(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => WasherSetGPSPage(
+          washerId: widget.washerId,
+          washerData: null,
         ),
       ),
     );
@@ -971,4 +1396,16 @@ class _CalendrierPageState extends State<CalendrierPage> {
 
     return '${days[date.weekday - 1]} ${date.day} ${months[date.month - 1]}';
   }
+}
+
+class StatusConfig {
+  final Color color;
+  final String text;
+  final IconData icon;
+
+  StatusConfig({
+    required this.color,
+    required this.text,
+    required this.icon,
+  });
 }
